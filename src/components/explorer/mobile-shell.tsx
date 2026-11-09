@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { scenariosOf } from "@/data/catalog";
 import { CATEGORY_COPY, type Pattern } from "@/data/types";
 import { CodeView } from "./code-view";
+import { ScenarioTabs } from "./scenario-tabs";
 
 export type MobileTab = "learn" | "canvas" | "code";
 
@@ -52,30 +53,13 @@ export function MobileShell({
           </span>
           <ChevronDown className="size-4 shrink-0 text-muted" aria-hidden="true" />
         </button>
-        {scenarios.length > 1 ? (
-          <div
-            className="scrollbar-none -mx-1 flex flex-nowrap gap-1.5 overflow-x-auto overscroll-x-contain whitespace-nowrap px-1 pb-0.5 touch-pan-x"
-            role="tablist"
-            aria-label="Scenario"
-          >
-            {scenarios.map((scenario) => (
-              <button
-                key={scenario.id}
-                type="button"
-                role="tab"
-                aria-selected={scenario.id === scenarioId}
-                onClick={() => onScenario(scenario.id)}
-                className={clsx(
-                  "inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-lg border px-3 text-sm font-semibold",
-                  scenario.id === scenarioId
-                    ? "border-primary bg-wash text-primary"
-                    : "border-line text-muted",
-                )}
-              >
-                {scenario.shortLabel}
-              </button>
-            ))}
-          </div>
+        {scenarios.length !== 1 ? (
+          <ScenarioTabs
+            scenarios={scenarios}
+            scenarioId={scenarioId}
+            onScenario={onScenario}
+            className="-mx-1 px-1 pb-0.5"
+          />
         ) : null}
       </div>
 

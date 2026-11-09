@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode }
 import { isVisible, objectLines } from "@/data/catalog";
 import type { DiagramObject, Pattern, PatternStep, Scenario } from "@/data/types";
 import { edgeMotion, entityMatches, kindTone, problemHint, roleOf, type Lens, type Role } from "./roles";
+import { ScenarioTabs } from "./scenario-tabs";
 
 export type { Lens };
 export type StageMode = "objects" | "sequence";
@@ -92,26 +93,32 @@ export function Stage({
         </div>
         {!compact ? <p className="font-mono text-xs text-muted">{pattern.name}</p> : null}
       </div>
-      {showScenarios && scenarios.length > 1 ? (
-        <div id="scenario-switcher" className="flex shrink-0 flex-wrap gap-1 border-b border-line px-3 py-2" role="tablist" aria-label="Scenario">
-          {scenarios.map((scenario) => (
-            <button
-              key={scenario.id}
-              type="button"
-              role="tab"
-              aria-selected={scenario.id === scenarioId}
-              onClick={() => onScenario(scenario.id)}
-              className={clsx(
-                "inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold",
-                scenario.id === scenarioId ? "border-primary bg-wash text-primary" : "border-line text-muted hover:text-ink",
-              )}
-            >
-              <ScenarioIcon id={scenario.id} domain={scenario.domain} />
-              <span className="sm:hidden">{scenario.shortLabel}</span>
-              <span className="hidden sm:inline">{scenario.label}</span>
-              <span className="hidden font-mono text-xs font-medium text-muted md:inline">{scenario.domain}</span>
-            </button>
-          ))}
+      {showScenarios && scenarios.length !== 1 ? (
+        <div id="scenario-switcher" className="shrink-0 border-b border-line px-3 py-2">
+          {scenarios.length > 1 ? (
+            <div className="flex min-h-9 flex-wrap gap-1" role="tablist" aria-label="Scenario">
+              {scenarios.map((scenario) => (
+                <button
+                  key={scenario.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={scenario.id === scenarioId}
+                  onClick={() => onScenario(scenario.id)}
+                  className={clsx(
+                    "inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold",
+                    scenario.id === scenarioId ? "border-primary bg-wash text-primary" : "border-line text-muted hover:text-ink",
+                  )}
+                >
+                  <ScenarioIcon id={scenario.id} domain={scenario.domain} />
+                  <span className="sm:hidden">{scenario.shortLabel}</span>
+                  <span className="hidden sm:inline">{scenario.label}</span>
+                  <span className="hidden font-mono text-xs font-medium text-muted md:inline">{scenario.domain}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <ScenarioTabs scenarios={scenarios} scenarioId={scenarioId} onScenario={onScenario} />
+          )}
         </div>
       ) : null}
       {!compact ? (

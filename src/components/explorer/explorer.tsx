@@ -76,10 +76,10 @@ export function Explorer({
 }) {
   useProductTour();
   const source = findPattern(isKnownPattern(patternId) ? patternId : undefined);
-  const [scenarioId, setScenarioId] = useState("classic-ui");
+  const [scenarioId, setScenarioId] = useState(() => scenariosOf(source)[0]?.id ?? "classic");
   const [treeOpen, setTreeOpen] = useState(false);
-  const pattern = resolvePattern(source, scenarioId);
   const scenarios = scenariosOf(source);
+  const pattern = resolvePattern(source, scenarioId);
   const safeStep = Math.max(0, Math.min(step, pattern.steps.length - 1));
   const [filter, setFilter] = useState<Filter>("all");
   const [topOnly, setTopOnly] = useState(false);
@@ -287,10 +287,12 @@ export function Explorer({
     }
   }
 
-  const learned = patterns.filter((item) => progress.done.includes(item.id)).length;
-  const started = patterns.filter(
-    (item) => progress.seen.includes(item.id) && !progress.done.includes(item.id),
-  ).length;
+  const learned = progress.ready
+    ? patterns.filter((item) => progress.done.includes(item.id)).length
+    : 0;
+  const started = progress.ready
+    ? patterns.filter((item) => progress.seen.includes(item.id) && !progress.done.includes(item.id)).length
+    : 0;
 
   const sidebar = (
     <Sidebar
@@ -320,6 +322,7 @@ export function Explorer({
         pattern={pattern}
         learned={learned}
         started={started}
+        progressReady={progress.ready}
         done={progress.done}
         seen={progress.seen}
         onFind={() => setTreeOpen(true)}
@@ -402,6 +405,7 @@ export function Explorer({
                 hoveredAlsoId={hoveredAlsoId}
                 onHover={hover}
                 onRelated={(id) => pick(id)}
+                onQuizSolved={progress.markDone}
                 reading={reading}
                 onToggleReading={toggleReading}
                 onCollapse={toggleRight}
@@ -428,6 +432,7 @@ export function Explorer({
               hoveredAlsoId={hoveredAlsoId}
               onHover={hover}
               onRelated={(id) => pick(id)}
+              onQuizSolved={progress.markDone}
               reading={false}
               onToggleReading={() => undefined}
               onCollapse={() => undefined}
@@ -581,6 +586,7 @@ function Header({
   pattern,
   learned,
   started,
+  progressReady = true,
   done,
   seen,
   onFind,
@@ -593,6 +599,7 @@ function Header({
   pattern: Pattern;
   learned: number;
   started: number;
+  progressReady?: boolean;
   done: string[];
   seen: string[];
   onFind: () => void;
@@ -660,15 +667,21 @@ function Header({
         ) : null}
         <ThemeMenu />
         {!mobile ? <FindPatternButton onClick={onFind} /> : null}
-        <div className="text-right">
+        <div className="text-right" aria-live="polite">
           <p className="font-mono text-xs tracking-wide text-muted">
             {mobile ? "PROGRESS" : "LEARNING PROGRESS"}
           </p>
-          <p className="text-sm font-semibold">
-            {learned} / {patterns.length}
-            {!mobile && started > 0 ? (
-              <span className="font-normal text-muted"> · {started} in progress</span>
-            ) : null}
+          <p className={clsx("text-sm font-semibold", !progressReady && "text-muted")}>
+            {progressReady ? (
+              <>
+                {learned} / {patterns.length}
+                {!mobile && started > 0 ? (
+                  <span className="font-normal text-muted"> · {started} in progress</span>
+                ) : null}
+              </>
+            ) : (
+              <span className="inline-block min-w-16 animate-pulse rounded bg-line/60 text-transparent">0 / 23</span>
+            )}
           </p>
         </div>
         {!mobile ? (
@@ -1191,6 +1204,7 @@ function Overview({
   hoveredAlsoId,
   onHover,
   onRelated,
+  onQuizSolved,
   reading,
   onToggleReading,
   onCollapse,
@@ -1202,6 +1216,7 @@ function Overview({
   hoveredAlsoId: string | null;
   onHover: (id: string | null, also?: string | null) => void;
   onRelated: (id: string) => void;
+  onQuizSolved?: (patternId: string) => void;
   reading: boolean;
   onToggleReading: () => void;
   onCollapse: () => void;
@@ -1275,7 +1290,7 @@ function Overview({
         </dl>
         <div className="space-y-4 px-4 py-4">
           <CollisionCard patternId={pattern.id} onOpen={onRelated} />
-          <SpotQuiz patternId={pattern.id} />
+          <SpotQuiz patternId={pattern.id} onSolved={onQuizSolved} />
           <div className="rounded-lg border border-line bg-wash px-3 py-2.5">
             <p className="font-mono text-xs font-medium tracking-wide text-primary">LLD PROMPT</p>
             <p className="mt-1 text-sm leading-relaxed">{pattern.prompt}</p>

@@ -108,7 +108,13 @@ function quizBank(patternId: string): PatternQuiz[] {
     }));
 }
 
-export function SpotQuiz({ patternId }: { patternId: string }) {
+export function SpotQuiz({
+  patternId,
+  onSolved,
+}: {
+  patternId: string;
+  onSolved?: (patternId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const bank = quizBank(patternId);
   const [index, setIndex] = useState(0);
@@ -122,6 +128,7 @@ export function SpotQuiz({ patternId }: { patternId: string }) {
 
   function choose(option: string) {
     setPicked(option);
+    if (option === quiz.correctAnswer) onSolved?.(patternId);
   }
 
   function another() {
@@ -238,7 +245,7 @@ export function ReferenceCards({ pattern }: { pattern: Pattern }) {
             <a
               href={link.href}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               className="flex gap-2 rounded-lg border border-line px-3 py-2 hover:border-primary"
             >
               <BookOpen className="mt-0.5 size-4 shrink-0 text-primary" />
