@@ -38,6 +38,8 @@ export function Stage({
   onHover,
   compact = false,
   showScenarios = true,
+  /** Laptop visualizer: lock canvas height so Call Trace cannot crush it. */
+  guaranteeCanvas = false,
 }: {
   pattern: Pattern;
   step: number;
@@ -56,6 +58,7 @@ export function Stage({
   onHover: (id: string | null, also?: string | null) => void;
   compact?: boolean;
   showScenarios?: boolean;
+  guaranteeCanvas?: boolean;
 }) {
   const current = pattern.steps[step];
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
@@ -63,101 +66,122 @@ export function Stage({
   return (
     <section
       className={clsx(
-        "flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm",
-        compact ? "h-[min(520px,70dvh)] min-h-0 shrink-0" : "h-full min-h-72 md:min-h-0",
+        "flex min-h-0 w-full flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm",
+        compact ? "h-[min(520px,70dvh)] shrink-0" : "h-full",
       )}
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg bg-canvas p-1" role="tablist" aria-label="Diagram mode">
-            <ModeButton active={mode === "objects"} onClick={() => onMode("objects")}>
-              Objects
-            </ModeButton>
-            <ModeButton active={mode === "sequence"} onClick={() => onMode("sequence")}>
-              Sequence
-            </ModeButton>
-          </div>
-          <div id="mode-toggle" className="flex rounded-lg bg-canvas p-1" role="tablist" aria-label="Coupling view">
-            <ModeButton
-              active={lens === "problem"}
-              disabled={!hasProblem}
-              tone="alert"
-              onClick={() => onLens("problem")}
-            >
-              <span className="sm:hidden">Problem</span>
-              <span className="hidden sm:inline">Anti-pattern</span>
-            </ModeButton>
-            <ModeButton active={lens === "solution"} onClick={() => onLens("solution")}>
-              <span className="sm:hidden">Pattern</span>
-              <span className="hidden sm:inline">Refactored</span>
-            </ModeButton>
-          </div>
-        </div>
-        {!compact ? <p className="font-mono text-xs text-muted">{pattern.name}</p> : null}
-      </div>
-      {showScenarios && scenarios.length !== 1 ? (
-        <div id="scenario-switcher" className="shrink-0 border-b border-line px-3 py-2">
-          {scenarios.length > 1 ? (
-            <div className="flex min-h-9 flex-wrap gap-1" role="tablist" aria-label="Scenario">
-              {scenarios.map((scenario) => (
-                <button
-                  key={scenario.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={scenario.id === scenarioId}
-                  onClick={() => onScenario(scenario.id)}
-                  className={clsx(
-                    "inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold",
-                    scenario.id === scenarioId ? "border-primary bg-wash text-primary" : "border-line text-muted hover:text-ink",
-                  )}
-                >
-                  <ScenarioIcon id={scenario.id} domain={scenario.domain} />
-                  <span className="sm:hidden">{scenario.shortLabel}</span>
-                  <span className="hidden sm:inline">{scenario.label}</span>
-                  <span className="hidden font-mono text-xs font-medium text-muted md:inline">{scenario.domain}</span>
-                </button>
-              ))}
+      {/* 1. TOP CONTROLS — fixed */}
+      <div className="z-10 shrink-0 space-y-1.5 border-b border-line bg-surface px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg bg-canvas p-1" role="tablist" aria-label="Diagram mode">
+              <ModeButton active={mode === "objects"} onClick={() => onMode("objects")}>
+                Objects
+              </ModeButton>
+              <ModeButton active={mode === "sequence"} onClick={() => onMode("sequence")}>
+                Sequence
+              </ModeButton>
             </div>
+            <div id="mode-toggle" className="flex rounded-lg bg-canvas p-1" role="tablist" aria-label="Coupling view">
+              <ModeButton
+                active={lens === "problem"}
+                disabled={!hasProblem}
+                tone="alert"
+                onClick={() => onLens("problem")}
+              >
+                <span className="sm:hidden">Problem</span>
+                <span className="hidden sm:inline">Anti-pattern</span>
+              </ModeButton>
+              <ModeButton active={lens === "solution"} onClick={() => onLens("solution")}>
+                <span className="sm:hidden">Pattern</span>
+                <span className="hidden sm:inline">Refactored</span>
+              </ModeButton>
+            </div>
+          </div>
+          {!compact ? <p className="font-mono text-xs text-muted">{pattern.name}</p> : null}
+        </div>
+        {showScenarios && scenarios.length !== 1 ? (
+          <div id="scenario-switcher">
+            {scenarios.length > 1 ? (
+              <div
+                className="scrollbar-none flex min-h-8 flex-nowrap gap-1 overflow-x-auto"
+                role="tablist"
+                aria-label="Scenario"
+              >
+                {scenarios.map((scenario) => (
+                  <button
+                    key={scenario.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={scenario.id === scenarioId}
+                    onClick={() => onScenario(scenario.id)}
+                    title={scenario.label}
+                    className={clsx(
+                      "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 text-xs font-semibold",
+                      scenario.id === scenarioId
+                        ? "border-primary bg-wash text-primary"
+                        : "border-line text-muted hover:text-ink",
+                    )}
+                  >
+                    <ScenarioIcon id={scenario.id} domain={scenario.domain} />
+                    <span>{scenario.shortLabel}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <ScenarioTabs scenarios={scenarios} scenarioId={scenarioId} onScenario={onScenario} />
+            )}
+          </div>
+        ) : null}
+        {!compact ? (
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <Legend swatch="bg-role-client" label="Client" />
+            <Legend swatch="bg-role-creator" label="Creator" />
+            <Legend swatch="bg-role-product" label="Product" />
+            <Legend swatch="bg-role-alert" label="Tight coupling" />
+          </div>
+        ) : null}
+      </div>
+
+      {/* 2. CANVAS — fills leftover height; wrapper guarantees room on laptop */}
+      <div
+        className={clsx(
+          "relative w-full border-b border-line bg-canvas/50",
+          guaranteeCanvas
+            ? "min-h-[280px] flex-1 overflow-x-auto overflow-y-hidden"
+            : "min-h-0 flex-1 overflow-hidden",
+        )}
+      >
+        <div className={clsx("relative h-full", guaranteeCanvas && "min-w-[520px]")}>
+          {mode === "objects" ? (
+            <ObjectBoard
+              pattern={pattern}
+              step={step}
+              lens={lens}
+              playing={playing}
+              showFlowBall={showFlowBall}
+              compact={compact}
+              {...hover}
+            />
           ) : (
-            <ScenarioTabs scenarios={scenarios} scenarioId={scenarioId} onScenario={onScenario} />
+            <SequenceBoard pattern={pattern} step={step} lens={lens} compact={compact} {...hover} />
           )}
         </div>
-      ) : null}
-      {!compact ? (
-        <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-line px-3 py-1.5">
-          <Legend swatch="bg-role-client" label="Client" />
-          <Legend swatch="bg-role-creator" label="Creator" />
-          <Legend swatch="bg-role-product" label="Product" />
-          <Legend swatch="bg-role-alert" label="Tight coupling" />
-        </div>
-      ) : null}
-      <div className={clsx("min-h-0 flex-1 overflow-hidden", !compact && "min-h-48 md:min-h-0")}>
-        {mode === "objects" ? (
-          <ObjectBoard
-            pattern={pattern}
-            step={step}
-            lens={lens}
-            playing={playing}
-            showFlowBall={showFlowBall}
-            compact={compact}
-            {...hover}
-          />
-        ) : (
-          <SequenceBoard pattern={pattern} step={step} lens={lens} compact={compact} {...hover} />
-        )}
       </div>
+
+      {/* Step caption — pinned under canvas */}
       {current ? (
-        <div className={clsx("shrink-0 border-t border-line bg-surface px-3", compact ? "py-2" : "py-2.5")}>
+        <div className={clsx("shrink-0 border-t border-line bg-surface px-3", compact ? "py-2" : "py-1.5")}>
           <p
             className={clsx(
-              "font-mono text-xs font-medium tracking-wide",
+              "font-mono text-[11px] font-medium tracking-wide",
               current.kind === "problem" ? "text-role-alert" : "text-primary",
             )}
           >
             STEP {step + 1} / {pattern.steps.length} · {current.kind.toUpperCase()}
           </p>
-          <p className="text-sm font-semibold">{current.title}</p>
-          <p className={clsx("text-sm leading-relaxed text-muted", compact ? "line-clamp-2" : "line-clamp-3")}>
+          <p className="truncate text-xs font-semibold">{current.title}</p>
+          <p className={clsx("text-xs leading-relaxed text-muted", guaranteeCanvas ? "line-clamp-1" : "line-clamp-2")}>
             {lens === "problem" && current.kind === "problem" ? problemHint(current) : current.blurb}
           </p>
         </div>

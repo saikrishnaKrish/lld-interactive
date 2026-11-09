@@ -1,7 +1,10 @@
 import clsx from "clsx";
 import {
+  BookOpen,
+  Boxes,
   Check,
   ChevronRight,
+  Code2,
   Flame,
   HelpCircle,
   Maximize2,
@@ -46,17 +49,26 @@ const LAYOUT_KEY = "pattern-explorer-layout";
 const DEFAULT_LAYOUT: Layout = { "nav-panel": 18, "canvas-panel": 52, "overview-panel": 30 };
 const READING_LAYOUT: Layout = { "nav-panel": 0, "canvas-panel": 35, "overview-panel": 65 };
 
-function useWideLayout() {
-  const [wide, setWide] = useState(false);
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
   useEffect(() => {
-    const query = window.matchMedia("(min-width: 768px)");
-    const apply = () => setWide(query.matches);
+    const media = window.matchMedia(query);
+    const apply = () => setMatches(media.matches);
     apply();
-    query.addEventListener("change", apply);
-    return () => query.removeEventListener("change", apply);
-  }, []);
-  return wide;
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [query]);
+  return matches;
 }
+
+type DeskTab = "diagram" | "guide" | "code";
+type ChromeMode = "mobile" | "laptop" | "ultrawide";
+
+const DESK_TABS: { id: DeskTab; label: string; short: string; icon: typeof Boxes }[] = [
+  { id: "diagram", label: "Visualizer & Trace", short: "Visual", icon: Boxes },
+  { id: "guide", label: "Guide & Trade-offs", short: "Guide", icon: BookOpen },
+  { id: "code", label: "Code", short: "Code", icon: Code2 },
+];
 
 type Filter = "all" | CategoryId;
 
@@ -95,8 +107,11 @@ export function Explorer({
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [reading, setReading] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("learn");
+  const [deskTab, setDeskTab] = useState<DeskTab>("diagram");
   const [patternsOpen, setPatternsOpen] = useState(false);
-  const wide = useWideLayout();
+  const wide = useMediaQuery("(min-width: 768px)");
+  const ultrawide = useMediaQuery("(min-width: 1536px)");
+  const chrome: ChromeMode = !wide ? "mobile" : ultrawide ? "ultrawide" : "laptop";
   const groupRef = useGroupRef();
   const leftRef = usePanelRef();
   const rightRef = usePanelRef();
@@ -223,7 +238,7 @@ export function Explorer({
   }
 
   useEffect(() => {
-    if (!wide) return;
+    if (!ultrawide) return;
     const raw = localStorage.getItem(LAYOUT_KEY);
     if (!raw) return;
     try {
@@ -234,11 +249,15 @@ export function Explorer({
     } catch {
       localStorage.removeItem(LAYOUT_KEY);
     }
-  }, [wide, groupRef]);
+  }, [ultrawide, groupRef]);
 
   function toggleLeft() {
-    if (!wide) {
+    if (chrome === "mobile") {
       setNavOpen((value) => !value);
+      return;
+    }
+    if (chrome === "laptop") {
+      setNavCollapsed((value) => !value);
       return;
     }
     const panel = leftRef.current;
@@ -248,6 +267,10 @@ export function Explorer({
   }
 
   function toggleRight() {
+    if (chrome === "laptop") {
+      setDeskTab("guide");
+      return;
+    }
     const panel = rightRef.current;
     if (!panel) return;
     if (panel.isCollapsed()) panel.expand();
@@ -319,6 +342,31 @@ export function Explorer({
     />
   );
 
+  const workspaceProps = {
+    pattern,
+    safeStep,
+    mode,
+    setMode,
+    lens,
+    hasProblem,
+    chooseLens,
+    playing,
+    showFlowBall,
+    onToggleFlowBall: () => setShowFlowBall((value) => !value),
+    scenarios,
+    scenarioId,
+    chooseScenario,
+    hoveredEntityId,
+    hoveredAlsoId,
+    hover,
+    speed,
+    setSpeed,
+    stepBy,
+    togglePlay,
+    resetPlay,
+    pick,
+  } as const;
+
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-bg text-ink">
       <Header
@@ -329,14 +377,15 @@ export function Explorer({
         done={progress.done}
         seen={progress.seen}
         onFind={() => setTreeOpen(true)}
-        navCollapsed={wide ? navCollapsed : !navOpen}
-        overviewCollapsed={overviewCollapsed}
+        navCollapsed={chrome === "mobile" ? !navOpen : navCollapsed}
+        overviewCollapsed={chrome === "ultrawide" ? overviewCollapsed : false}
         onToggleNav={toggleLeft}
         onShowOverview={toggleRight}
-        mobile={!wide}
+        chrome={chrome}
       />
-      {wide ? (
-        <div className="hidden min-h-0 w-full flex-1 overflow-hidden p-3 md:flex">
+
+      {chrome === "ultrawide" ? (
+        <div className="flex min-h-0 w-full flex-1 overflow-hidden p-3">
           <Group
             id="pattern-explorer-layout"
             className="h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden"
@@ -366,30 +415,7 @@ export function Explorer({
               className="flex h-full min-h-0 flex-col overflow-hidden"
               style={{ overflow: "hidden" }}
             >
-              <Workspace
-                pattern={pattern}
-                safeStep={safeStep}
-                mode={mode}
-                setMode={setMode}
-                lens={lens}
-                hasProblem={hasProblem}
-                chooseLens={chooseLens}
-                playing={playing}
-                showFlowBall={showFlowBall}
-                onToggleFlowBall={() => setShowFlowBall((value) => !value)}
-                scenarios={scenarios}
-                scenarioId={scenarioId}
-                chooseScenario={chooseScenario}
-                hoveredEntityId={hoveredEntityId}
-                hoveredAlsoId={hoveredAlsoId}
-                hover={hover}
-                speed={speed}
-                setSpeed={setSpeed}
-                stepBy={stepBy}
-                togglePlay={togglePlay}
-                resetPlay={resetPlay}
-                pick={pick}
-              />
+              <Workspace {...workspaceProps} />
             </Panel>
             <Separator id="overview-separator" className="pane-separator" />
             <Panel
@@ -418,7 +444,93 @@ export function Explorer({
             </Panel>
           </Group>
         </div>
-      ) : (
+      ) : null}
+
+      {chrome === "laptop" ? (
+        <div className="flex min-h-0 w-full flex-1 gap-3 overflow-hidden p-3">
+          <aside
+            className={clsx(
+              "flex h-full min-h-0 shrink-0 flex-col overflow-hidden transition-[width,opacity]",
+              navCollapsed ? "w-0 opacity-0" : "w-60 opacity-100 xl:w-64",
+            )}
+            aria-hidden={navCollapsed}
+          >
+            {!navCollapsed ? sidebar : null}
+          </aside>
+
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+            <div
+              className="flex h-11 shrink-0 items-center gap-1 border-b border-line bg-canvas/70 px-2"
+              role="tablist"
+              aria-label="Workspace"
+            >
+              {DESK_TABS.map((tab) => {
+                const Icon = tab.icon;
+                const active = deskTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setDeskTab(tab.id)}
+                    className={clsx(
+                      "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold transition-colors",
+                      active ? "bg-primary text-on-primary" : "text-muted hover:bg-surface hover:text-ink",
+                    )}
+                  >
+                    <Icon className="size-3.5 shrink-0" />
+                    <span className="hidden lg:inline">{tab.label}</span>
+                    <span className="lg:hidden">{tab.short}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {deskTab === "diagram" ? (
+                <div className="flex h-full min-h-0 flex-col overflow-hidden p-3">
+                  <Workspace {...workspaceProps} tall />
+                </div>
+              ) : null}
+              {deskTab === "guide" ? (
+                <div className="h-full min-h-0 overflow-y-auto">
+                  <div className="mx-auto max-w-4xl p-4 lg:p-6">
+                    <Overview
+                      pattern={pattern}
+                      hoveredEntityId={hoveredEntityId}
+                      hoveredAlsoId={hoveredAlsoId}
+                      onHover={hover}
+                      onRelated={(id) => {
+                        pick(id);
+                        setDeskTab("diagram");
+                      }}
+                      onQuizSolved={progress.markDone}
+                      reading={false}
+                      onToggleReading={() => undefined}
+                      onCollapse={() => undefined}
+                      showCode={false}
+                      panelControls={false}
+                    />
+                  </div>
+                </div>
+              ) : null}
+              {deskTab === "code" ? (
+                <div className="h-full min-h-0 overflow-y-auto p-4 lg:p-6">
+                  <LaptopCodePanel
+                    pattern={pattern}
+                    hoveredEntityId={hoveredEntityId}
+                    hoveredAlsoId={hoveredAlsoId}
+                    onHover={hover}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {chrome === "mobile" ? (
         <MobileShell
           pattern={pattern}
           scenarios={scenarios}
@@ -445,33 +557,7 @@ export function Explorer({
               panelControls={false}
             />
           ) : null}
-          {mobileTab === "canvas" ? (
-            <Workspace
-              pattern={pattern}
-              safeStep={safeStep}
-              mode={mode}
-              setMode={setMode}
-              lens={lens}
-              hasProblem={hasProblem}
-              chooseLens={chooseLens}
-              playing={playing}
-              showFlowBall={showFlowBall}
-              onToggleFlowBall={() => setShowFlowBall((value) => !value)}
-              scenarios={scenarios}
-              scenarioId={scenarioId}
-              chooseScenario={chooseScenario}
-              hoveredEntityId={hoveredEntityId}
-              hoveredAlsoId={hoveredAlsoId}
-              hover={hover}
-              speed={speed}
-              setSpeed={setSpeed}
-              stepBy={stepBy}
-              togglePlay={togglePlay}
-              resetPlay={resetPlay}
-              pick={pick}
-              compact
-            />
-          ) : null}
+          {mobileTab === "canvas" ? <Workspace {...workspaceProps} compact /> : null}
           {mobileTab === "code" ? (
             <MobileCodePanel
               pattern={pattern}
@@ -481,7 +567,8 @@ export function Explorer({
             />
           ) : null}
         </MobileShell>
-      )}
+      ) : null}
+
       <DecisionTreeDialog
         open={treeOpen}
         onClose={() => setTreeOpen(false)}
@@ -518,6 +605,7 @@ function Workspace({
   resetPlay,
   pick,
   compact = false,
+  tall = false,
 }: {
   pattern: Pattern;
   safeStep: number;
@@ -542,15 +630,26 @@ function Workspace({
   resetPlay: () => void;
   pick: (id: string, nextStep?: number, replace?: boolean) => void;
   compact?: boolean;
+  tall?: boolean;
 }) {
   return (
     <section
       className={clsx(
-        "order-1 flex min-h-0 min-w-0 flex-col gap-3",
-        compact ? "overflow-visible" : "h-full overflow-hidden",
+        "order-1 flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden",
+        compact ? "gap-3 overflow-visible" : "gap-2",
       )}
     >
-      <div className={clsx("min-w-0", compact ? "shrink-0" : "min-h-0 flex-1 overflow-hidden")}>
+      {/* Canvas block — flex-[1.3] + min height so nodes never crush */}
+      <div
+        className={clsx(
+          "min-w-0",
+          compact
+            ? "shrink-0"
+            : tall
+              ? "flex min-h-[360px] flex-[1.3] flex-col overflow-hidden"
+              : "min-h-0 flex-1 overflow-hidden",
+        )}
+      >
         <Stage
           pattern={pattern}
           step={safeStep}
@@ -569,8 +668,10 @@ function Workspace({
           onHover={hover}
           compact={compact}
           showScenarios={!compact}
+          guaranteeCanvas={tall}
         />
       </div>
+      {/* Call Trace — capped height, scrolls inside */}
       <Trace
         pattern={pattern}
         step={safeStep}
@@ -591,6 +692,57 @@ function Workspace({
         onReset={resetPlay}
         onSeek={(index) => pick(pattern.id, index, true)}
         compact={compact}
+        dense={tall}
+      />
+    </section>
+  );
+}
+
+function LaptopCodePanel({
+  pattern,
+  hoveredEntityId,
+  hoveredAlsoId,
+  onHover,
+}: {
+  pattern: Pattern;
+  hoveredEntityId: string | null;
+  hoveredAlsoId: string | null;
+  onHover: (id: string | null, also?: string | null) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  async function copySnippet() {
+    try {
+      await navigator.clipboard.writeText(pattern.snippet);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <section className="mx-auto max-w-4xl rounded-xl border border-line bg-surface p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">TypeScript</h2>
+          <p className="truncate text-xs text-muted">{pattern.name} · working snippet</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-full bg-wash px-2 py-0.5 font-mono text-xs font-medium text-primary">
+            {CATEGORY_COPY[pattern.category].label}
+          </span>
+          <button type="button" onClick={() => void copySnippet()} className="text-xs font-semibold text-primary">
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </div>
+      <CodeView
+        snippet={pattern.snippet}
+        objects={pattern.objects}
+        hoveredEntityId={hoveredEntityId}
+        hoveredAlsoId={hoveredAlsoId}
+        onHover={onHover}
       />
     </section>
   );
@@ -608,7 +760,7 @@ function Header({
   overviewCollapsed,
   onToggleNav,
   onShowOverview,
-  mobile = false,
+  chrome,
 }: {
   pattern: Pattern;
   learned: number;
@@ -621,85 +773,91 @@ function Header({
   overviewCollapsed: boolean;
   onToggleNav: () => void;
   onShowOverview: () => void;
-  mobile?: boolean;
+  chrome: ChromeMode;
 }) {
   const group = CATEGORY_COPY[pattern.category];
+  const desktop = chrome !== "mobile";
+  const ultrawide = chrome === "ultrawide";
+
   return (
-    <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-3 py-2 sm:px-4">
-      <div className="flex items-center gap-2.5">
-        {!mobile ? (
+    <header className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-line bg-surface px-3 sm:px-4">
+      <div className="flex min-w-0 shrink-0 items-center gap-2.5">
+        {desktop ? (
           <button
             type="button"
             onClick={onToggleNav}
             aria-label={navCollapsed ? "Show design patterns" : "Hide design patterns"}
-            className="hidden size-11 place-items-center rounded-lg border border-line md:grid"
+            className="grid size-9 shrink-0 place-items-center rounded-lg border border-line"
           >
             {navCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
           </button>
         ) : null}
         <Logo />
-        <div>
-          <p className="text-sm font-extrabold tracking-wide">PATTERN EXPLORER</p>
-          <p className="font-mono text-xs tracking-wide text-muted">LEARN LOW-LEVEL DESIGN</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-extrabold tracking-wide">PATTERN EXPLORER</p>
+          <p className="hidden font-mono text-[11px] tracking-wide text-muted sm:block">LEARN LOW-LEVEL DESIGN</p>
         </div>
       </div>
-      {!mobile ? (
-        <div className="hidden min-w-0 md:block">
-          <p className="font-mono text-xs tracking-wide text-muted">NOW LEARNING</p>
-          <p className="max-w-md truncate text-sm font-semibold">
+
+      {desktop ? (
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <p className="font-mono text-[11px] tracking-wide text-muted">NOW LEARNING</p>
+          <p className="truncate text-sm font-semibold">
             {pattern.name}
-            <span className="font-normal text-muted"> · {pattern.tagline}</span>
+            <span className="hidden font-normal text-muted lg:inline"> · {pattern.tagline}</span>
           </p>
         </div>
+      ) : (
+        <div className="min-w-0 flex-1" />
+      )}
+
+      {ultrawide ? (
+        <div className="hidden shrink-0 2xl:block">
+          <p className="font-mono text-[11px] tracking-wide text-muted">INTENT GROUP</p>
+          <p className="text-sm font-semibold">{group.label}</p>
+        </div>
       ) : null}
-      <div className="hidden xl:block">
-        <p className="font-mono text-xs tracking-wide text-muted">INTENT GROUP</p>
-        <p className="text-sm font-semibold">{group.label}</p>
-      </div>
-      <div className="ml-auto flex items-center gap-2 sm:gap-3">
-        {!mobile && overviewCollapsed ? (
+
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {ultrawide && overviewCollapsed ? (
           <button
             type="button"
             onClick={onShowOverview}
-            className="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-sm font-semibold"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 text-xs font-semibold"
           >
             <PanelRightOpen className="size-4" />
-            Show reading
+            <span className="hidden xl:inline">Show reading</span>
           </button>
         ) : null}
-        {!mobile ? (
+        {desktop ? (
           <button
             type="button"
             onClick={() => startTour()}
             aria-label="Quick tour"
             title="Quick tour"
-            className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-canvas px-3 text-sm font-semibold text-ink"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-canvas px-2.5 text-xs font-semibold text-ink"
           >
             <HelpCircle className="size-4" />
             <span className="hidden sm:inline">Tour</span>
           </button>
         ) : null}
         <ThemeMenu />
-        {!mobile ? <FindPatternButton onClick={onFind} /> : null}
-        <div className="text-right" aria-live="polite">
-          <p className="font-mono text-xs tracking-wide text-muted">
-            {mobile ? "PROGRESS" : "LEARNING PROGRESS"}
-          </p>
-          <p className={clsx("text-sm font-semibold", !progressReady && "text-muted")}>
+        {desktop ? <FindPatternButton onClick={onFind} /> : null}
+        <div className="hidden text-right sm:block" aria-live="polite">
+          <p className="font-mono text-[11px] tracking-wide text-muted">{chrome === "mobile" ? "PROGRESS" : "PROGRESS"}</p>
+          <p className={clsx("text-xs font-semibold", !progressReady && "text-muted")}>
             {progressReady ? (
               <>
-                {learned} / {patterns.length}
-                {!mobile && started > 0 ? (
-                  <span className="font-normal text-muted"> · {started} in progress</span>
-                ) : null}
+                {learned}/{patterns.length}
+                {desktop && started > 0 ? <span className="font-normal text-muted"> · {started}</span> : null}
               </>
             ) : (
-              <span className="inline-block min-w-16 animate-pulse rounded bg-line/60 text-transparent">0 / 23</span>
+              <span className="inline-block min-w-12 animate-pulse rounded bg-line/60 text-transparent">0/23</span>
             )}
           </p>
         </div>
-        {!mobile ? (
-          <div className="hidden h-5 w-36 overflow-hidden rounded-sm sm:flex" aria-hidden="true">
+        {ultrawide ? (
+          <div className="hidden h-4 w-28 overflow-hidden rounded-sm 2xl:flex" aria-hidden="true">
             {patterns.map((item) => (
               <span
                 key={item.id}
@@ -1014,6 +1172,7 @@ function Trace({
   onReset,
   onSeek,
   compact = false,
+  dense = false,
 }: {
   pattern: Pattern;
   step: number;
@@ -1031,6 +1190,7 @@ function Trace({
   onReset: () => void;
   onSeek: (index: number) => void;
   compact?: boolean;
+  dense?: boolean;
 }) {
   const activeRef = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
@@ -1042,12 +1202,16 @@ function Trace({
       id="call-trace-section"
       className={clsx(
         "flex shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm",
-        compact ? "h-72" : "h-64 sm:h-72 md:h-60",
+        compact
+          ? "h-72"
+          : dense
+            ? "max-h-[220px] min-h-[160px] flex-1"
+            : "h-64 shrink-0 sm:h-72 md:h-60",
       )}
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-canvas/60 px-3 py-1.5">
         <h2 className="text-xs font-bold tracking-widest">CALL TRACE</h2>
-        <p className="hidden font-mono text-xs text-muted sm:block">Space plays · arrows step</p>
+        <p className="hidden font-mono text-xs text-muted lg:block">Space plays · arrows step</p>
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
@@ -1091,18 +1255,18 @@ function Trace({
           </IconButton>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain touch-pan-x">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain touch-pan-x">
         <table
-          className={clsx("w-full border-collapse text-left text-xs", compact && "min-w-[34rem]")}
+          className={clsx("w-full border-collapse text-left text-xs", (compact || dense) && "min-w-[34rem]")}
         >
-          <thead className="sticky top-0 bg-surface text-muted">
-            <tr className="border-b border-line font-mono tracking-wide">
-              <th className="px-2 py-2 font-medium">#</th>
-              <th className="hidden px-2 py-2 font-medium sm:table-cell">Time</th>
-              <th className="px-2 py-2 font-medium">Source</th>
-              <th className="px-2 py-2 font-medium">Destination</th>
-              <th className="px-2 py-2 font-medium">Call</th>
-              <th className="hidden px-2 py-2 font-medium md:table-cell">Info</th>
+          <thead className="sticky top-0 z-10 border-b border-line bg-canvas text-muted">
+            <tr className="font-mono tracking-wide">
+              <th className="px-2 py-1.5 font-medium">#</th>
+              <th className="hidden px-2 py-1.5 font-medium sm:table-cell">Time</th>
+              <th className="px-2 py-1.5 font-medium">Source</th>
+              <th className="px-2 py-1.5 font-medium">Destination</th>
+              <th className="px-2 py-1.5 font-medium">Call</th>
+              <th className="hidden px-2 py-1.5 font-medium md:table-cell">Info</th>
             </tr>
           </thead>
           <tbody>

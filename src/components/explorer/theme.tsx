@@ -83,7 +83,7 @@ export function ThemeMenu() {
         aria-label={resolved === "dark" ? "Theme is dark. Change theme." : "Theme is light. Change theme."}
         title="Color theme"
         onClick={() => setOpen((value) => !value)}
-        className="grid size-11 place-items-center rounded-lg border border-line bg-canvas text-ink"
+        className="grid size-9 place-items-center rounded-lg border border-line bg-canvas text-ink"
       >
         {resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
       </button>

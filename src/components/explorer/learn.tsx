@@ -266,7 +266,7 @@ export function FindPatternButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-11 items-center gap-2 rounded-lg border border-line bg-canvas px-3 text-sm font-semibold"
+      className="inline-flex h-9 items-center gap-2 rounded-lg border border-line bg-canvas px-2.5 text-xs font-semibold sm:text-sm"
     >
       <Compass className="size-4 text-primary" />
       <span className="hidden sm:inline">Find my pattern</span>
