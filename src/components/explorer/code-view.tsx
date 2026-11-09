@@ -49,38 +49,40 @@ export function CodeView({
             onMouseEnter={() => token && onHover(token)}
             onMouseLeave={() => onHover(null)}
             className={clsx(
-              "rounded-lg border px-3 py-2 font-mono text-xs leading-relaxed",
+              "overflow-hidden rounded-lg border font-mono text-xs leading-relaxed",
               ROLE_FRAME[block.role],
               hot && "role-hot",
             )}
             style={{ "--role": `var(--color-role-${block.role})` } as CSSProperties}
           >
-            <div className="mb-1.5 flex items-center gap-2">
+            <div className="flex items-center gap-2 px-3 pt-2">
               <span className={clsx("rounded-full px-1.5 py-0.5 font-semibold tracking-wide", ROLE_BADGE[block.role])}>
                 {block.badge}
               </span>
-              {block.name ? <span className="font-semibold text-ink">{block.name}</span> : null}
+              {block.name ? <span className="truncate font-semibold text-ink">{block.name}</span> : null}
             </div>
-            <div>
-              {lines.map((line, index) => {
-                const mark = block.marks[index];
-                return (
-                  <div key={`${block.name}-${index}`} className="flex gap-2">
-                    {marked ? (
-                      <span
-                        aria-hidden={mark ? undefined : true}
-                        className={clsx(
-                          "mt-0.5 inline-flex h-fit w-20 shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold tracking-wide",
-                          mark ? ROLE_BADGE[mark.role] : "opacity-0",
-                        )}
-                      >
-                        {mark?.badge ?? ""}
-                      </span>
-                    ) : null}
-                    <code className="min-w-0 whitespace-pre text-ink">{line || " "}</code>
-                  </div>
-                );
-              })}
+            <div className="overflow-x-auto overscroll-x-contain px-3 pb-2 pt-1.5 touch-pan-x">
+              <pre className="m-0 min-w-max whitespace-pre leading-relaxed">
+                {lines.map((line, index) => {
+                  const mark = block.marks[index];
+                  return (
+                    <div key={`${block.name}-${index}`} className="flex gap-2">
+                      {marked ? (
+                        <span
+                          aria-hidden={mark ? undefined : true}
+                          className={clsx(
+                            "mt-0.5 inline-flex h-fit w-20 shrink-0 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold tracking-wide",
+                            mark ? ROLE_BADGE[mark.role] : "opacity-0",
+                          )}
+                        >
+                          {mark?.badge ?? ""}
+                        </span>
+                      ) : null}
+                      <code className="whitespace-pre text-ink">{line || " "}</code>
+                    </div>
+                  );
+                })}
+              </pre>
             </div>
           </article>
         );

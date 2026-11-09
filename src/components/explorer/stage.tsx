@@ -34,6 +34,8 @@ export function Stage({
   hoveredEntityId,
   hoveredAlsoId,
   onHover,
+  compact = false,
+  showScenarios = true,
 }: {
   pattern: Pattern;
   step: number;
@@ -49,12 +51,19 @@ export function Stage({
   hoveredEntityId: string | null;
   hoveredAlsoId: string | null;
   onHover: (id: string | null, also?: string | null) => void;
+  compact?: boolean;
+  showScenarios?: boolean;
 }) {
   const current = pattern.steps[step];
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
 
   return (
-    <section className="flex h-full min-h-72 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm lg:min-h-0">
+    <section
+      className={clsx(
+        "flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm",
+        compact ? "h-[min(520px,70dvh)] min-h-0 shrink-0" : "h-full min-h-72 md:min-h-0",
+      )}
+    >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg bg-canvas p-1" role="tablist" aria-label="Diagram mode">
@@ -81,9 +90,9 @@ export function Stage({
             </ModeButton>
           </div>
         </div>
-        <p className="font-mono text-xs text-muted">{pattern.name}</p>
+        {!compact ? <p className="font-mono text-xs text-muted">{pattern.name}</p> : null}
       </div>
-      {scenarios.length > 1 ? (
+      {showScenarios && scenarios.length > 1 ? (
         <div id="scenario-switcher" className="flex shrink-0 flex-wrap gap-1 border-b border-line px-3 py-2" role="tablist" aria-label="Scenario">
           {scenarios.map((scenario) => (
             <button
@@ -105,21 +114,23 @@ export function Stage({
           ))}
         </div>
       ) : null}
-      <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-line px-3 py-1.5">
-        <Legend swatch="bg-role-client" label="Client" />
-        <Legend swatch="bg-role-creator" label="Creator" />
-        <Legend swatch="bg-role-product" label="Product" />
-        <Legend swatch="bg-role-alert" label="Tight coupling" />
-      </div>
-      <div className="min-h-48 flex-1 overflow-hidden lg:min-h-0">
+      {!compact ? (
+        <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-line px-3 py-1.5">
+          <Legend swatch="bg-role-client" label="Client" />
+          <Legend swatch="bg-role-creator" label="Creator" />
+          <Legend swatch="bg-role-product" label="Product" />
+          <Legend swatch="bg-role-alert" label="Tight coupling" />
+        </div>
+      ) : null}
+      <div className={clsx("min-h-0 flex-1 overflow-hidden", !compact && "min-h-48 md:min-h-0")}>
         {mode === "objects" ? (
-          <ObjectBoard pattern={pattern} step={step} lens={lens} playing={playing} {...hover} />
+          <ObjectBoard pattern={pattern} step={step} lens={lens} playing={playing} compact={compact} {...hover} />
         ) : (
-          <SequenceBoard pattern={pattern} step={step} lens={lens} {...hover} />
+          <SequenceBoard pattern={pattern} step={step} lens={lens} compact={compact} {...hover} />
         )}
       </div>
       {current ? (
-        <div className="shrink-0 border-t border-line bg-surface px-3 py-2.5">
+        <div className={clsx("shrink-0 border-t border-line bg-surface px-3", compact ? "py-2" : "py-2.5")}>
           <p
             className={clsx(
               "font-mono text-xs font-medium tracking-wide",
@@ -129,7 +140,7 @@ export function Stage({
             STEP {step + 1} / {pattern.steps.length} · {current.kind.toUpperCase()}
           </p>
           <p className="text-sm font-semibold">{current.title}</p>
-          <p className="line-clamp-3 text-sm leading-relaxed text-muted">
+          <p className={clsx("text-sm leading-relaxed text-muted", compact ? "line-clamp-2" : "line-clamp-3")}>
             {lens === "problem" && current.kind === "problem" ? problemHint(current) : current.blurb}
           </p>
         </div>
@@ -203,6 +214,7 @@ function ObjectBoard({
   step,
   lens,
   playing,
+  compact = false,
   hoveredEntityId,
   hoveredAlsoId,
   onHover,
@@ -211,81 +223,101 @@ function ObjectBoard({
   step: number;
   lens: Lens;
   playing: boolean;
+  compact?: boolean;
 } & HoverHandlers) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w: 0, h: 0 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
 
   useLayoutEffect(() => {
-    const el = ref.current;
+    const el = viewportRef.current;
     if (!el) return;
-    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    const measure = () => setViewport({ w: el.clientWidth, h: el.clientHeight });
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
+  useLayoutEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const measure = () => setBoardSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [compact]);
+
   const current = pattern.steps[step];
   const visible = pattern.objects.filter((object) => isVisible(pattern, step, object.id));
   const hot = new Set([current?.from, current?.to].filter(Boolean));
-  const narrow = size.w > 0 && size.w < 640;
+  const useCards = compact || (viewport.w > 0 && viewport.w < 640);
+
+  const problemBanner =
+    lens === "problem" && current?.kind === "problem" ? (
+      <p className="role-alert pointer-events-none absolute inset-x-2 bottom-2 z-10 line-clamp-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium sm:inset-x-3 sm:bottom-3 sm:px-3 sm:py-2 sm:text-sm">
+        <span className="font-mono font-semibold">{current.call}</span>
+        <span className="mx-1.5">·</span>
+        {problemHint(current)}
+      </p>
+    ) : null;
+
+  if (useCards) {
+    return (
+      <div ref={viewportRef} className="blueprint relative h-full min-h-0 overflow-hidden">
+        <CompactObjects pattern={pattern} visible={visible} hot={hot} stepIndex={step} current={current} {...hover} />
+      </div>
+    );
+  }
 
   return (
-    <div ref={ref} className="blueprint relative h-full min-h-48 overflow-hidden lg:min-h-0">
-      {narrow ? (
-        <CompactObjects pattern={pattern} visible={visible} hot={hot} stepIndex={step} current={current} {...hover} />
-      ) : (
-        <>
-          {size.w > 0 ? (
-            <Arrows
-              pattern={pattern}
-              step={step}
-              lens={lens}
-              playing={playing}
-              visible={visible}
-              width={size.w}
-              height={size.h}
-              {...hover}
-            />
-          ) : null}
-          {size.w > 0 && current?.from && current.to && current.kind !== "problem" ? (
-            <CallLabel
-              pattern={pattern}
-              step={step}
-              lens={lens}
-              visible={visible}
-              width={size.w}
-              height={size.h}
-            />
-          ) : null}
-          {lens === "problem" && current?.kind === "problem" ? (
-            <p className="role-alert pointer-events-none absolute inset-x-3 bottom-3 z-10 rounded-lg border px-3 py-2 text-sm font-medium">
-              <span className="font-mono font-semibold">{current.call}</span>
-              <span className="mx-2">·</span>
-              {problemHint(current)}
-            </p>
-          ) : null}
-          {visible.map((object) => (
-            <ObjectCard
-              key={object.id}
-              pattern={pattern}
-              object={object}
-              step={step}
-              lens={lens}
-              hot={hot.has(object.id) || lit(object, hover)}
-              alert={lens === "problem" && (current?.from === object.id || current?.to === object.id)}
-              onHover={onHover}
-              className="absolute w-36"
-              style={{
-                left: `${object.x}%`,
-                top: `${object.y}%`,
-                transform: "translate(-50%, -50%)",
-              }}
-            />
-          ))}
-        </>
-      )}
+    <div ref={viewportRef} className="relative h-full min-h-0 overflow-hidden">
+      <div ref={boardRef} className="blueprint relative h-full w-full">
+        {boardSize.w > 0 ? (
+          <Arrows
+            pattern={pattern}
+            step={step}
+            lens={lens}
+            playing={playing}
+            visible={visible}
+            width={boardSize.w}
+            height={boardSize.h}
+            {...hover}
+          />
+        ) : null}
+        {boardSize.w > 0 && current?.from && current.to && current.kind !== "problem" ? (
+          <CallLabel
+            pattern={pattern}
+            step={step}
+            lens={lens}
+            visible={visible}
+            width={boardSize.w}
+            height={boardSize.h}
+          />
+        ) : null}
+        {visible.map((object) => (
+          <ObjectCard
+            key={object.id}
+            pattern={pattern}
+            object={object}
+            step={step}
+            lens={lens}
+            hot={hot.has(object.id) || lit(object, hover)}
+            alert={lens === "problem" && (current?.from === object.id || current?.to === object.id)}
+            onHover={onHover}
+            className="absolute w-36"
+            style={{
+              left: `${object.x}%`,
+              top: `${object.y}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+          />
+        ))}
+      </div>
+      {problemBanner}
     </div>
   );
 }
@@ -300,6 +332,7 @@ function ObjectCard({
   onHover,
   className,
   style,
+  compact = false,
 }: {
   pattern: Pattern;
   object: DiagramObject;
@@ -310,12 +343,15 @@ function ObjectCard({
   onHover: (id: string | null, also?: string | null) => void;
   className?: string;
   style?: CSSProperties;
+  compact?: boolean;
 }) {
   const role = roleOf(object.stereotype);
+  const lines = objectLines(pattern, step, object.id);
   return (
     <article
       className={clsx(
-        "rounded-lg border px-2.5 py-2 shadow-sm transition-shadow",
+        "rounded-lg border shadow-sm transition-shadow",
+        compact ? "px-2 py-1.5" : "px-2.5 py-2",
         alert ? "role-alert" : roleClass(role),
         hot && "role-hot",
         className,
@@ -332,11 +368,11 @@ function ObjectCard({
       >
         {object.stereotype}
       </p>
-      <h3 className="mt-1 truncate text-sm font-bold text-ink" title={object.name}>
+      <h3 className={clsx("mt-1 truncate font-bold text-ink", compact ? "text-xs" : "text-sm")} title={object.name}>
         {object.name}
       </h3>
       <ul className="mt-1 space-y-0.5 border-t border-line pt-1">
-        {objectLines(pattern, step, object.id).map((line) => (
+        {(compact ? lines.slice(0, 2) : lines).map((line) => (
           <li key={line} className="truncate font-mono text-xs text-muted">
             {line}
           </li>
@@ -379,8 +415,8 @@ function CompactObjects({
   const from = pattern.objects.find((object) => object.id === current?.from);
   const to = pattern.objects.find((object) => object.id === current?.to);
   return (
-    <div className="flex h-full flex-col gap-3 overflow-x-hidden overflow-y-auto p-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="flex h-full flex-col gap-2 overflow-x-hidden overflow-y-auto p-2.5 sm:gap-3 sm:p-3">
+      <div className="grid grid-cols-2 gap-2">
         {visible.map((object) => (
           <ObjectCard
             key={object.id}
@@ -391,14 +427,15 @@ function CompactObjects({
             hot={hot.has(object.id) || lit(object, hover)}
             alert={current?.kind === "problem" && (current.from === object.id || current.to === object.id)}
             onHover={onHover}
-            className="min-w-36 flex-1"
+            compact
+            className="min-w-0"
           />
         ))}
       </div>
       {current ? (
         <p
           className={clsx(
-            "rounded-lg border px-3 py-2 font-mono text-sm",
+            "shrink-0 rounded-lg border px-3 py-2 font-mono text-sm",
             current.kind === "problem" ? "role-alert" : "border-line bg-surface text-ink",
           )}
         >
@@ -618,6 +655,7 @@ function SequenceBoard({
   pattern,
   step,
   lens,
+  compact = false,
   hoveredEntityId,
   hoveredAlsoId,
   onHover,
@@ -625,17 +663,18 @@ function SequenceBoard({
   pattern: Pattern;
   step: number;
   lens: Lens;
+  compact?: boolean;
 } & HoverHandlers) {
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
   const visible = pattern.objects.filter((object) => isVisible(pattern, step, object.id));
   const shown = pattern.steps
     .map((item, index) => ({ item, index }))
     .filter(({ item, index }) => index === step || (lens === "problem" ? item.kind === "problem" : item.kind !== "problem"));
-  const columns = `repeat(${Math.max(visible.length, 1)}, minmax(0, 1fr))`;
-
-  return (
-    <div className="flex h-full min-h-48 flex-col overflow-hidden bg-canvas lg:min-h-0">
-      <div className="grid border-b border-line bg-surface" style={{ gridTemplateColumns: columns }}>
+  const colCount = Math.max(visible.length, 1);
+  const columns = `repeat(${colCount}, minmax(0, 1fr))`;
+  const board = (
+    <>
+      <div className="grid shrink-0 border-b border-line bg-surface" style={{ gridTemplateColumns: columns }}>
         {visible.map((object) => {
           const hot = pattern.steps[step]?.from === object.id || pattern.steps[step]?.to === object.id || lit(object, hover);
           const role = roleOf(object.stereotype);
@@ -646,7 +685,7 @@ function SequenceBoard({
               onMouseEnter={() => onHover(object.id)}
               onMouseLeave={() => onHover(null)}
               className={clsx(
-                "border-r border-line px-2 py-2 text-center last:border-r-0",
+                "min-w-0 border-r border-line px-1.5 py-2 text-center last:border-r-0 sm:px-2",
                 hot && roleClass(role),
               )}
             >
@@ -658,7 +697,7 @@ function SequenceBoard({
               >
                 {object.stereotype}
               </p>
-              <p className="truncate text-sm font-semibold text-ink" title={object.name}>
+              <p className="truncate text-xs font-semibold text-ink sm:text-sm" title={object.name}>
                 {object.name}
               </p>
             </button>
@@ -685,8 +724,10 @@ function SequenceBoard({
           ))}
         </ol>
       </div>
-    </div>
+    </>
   );
+
+  return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-canvas">{board}</div>;
 }
 
 function traceLinked(item: PatternStep, pattern: Pattern, hover: HoverHandlers): boolean {

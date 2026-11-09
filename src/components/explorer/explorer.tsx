@@ -32,6 +32,7 @@ import {
   SpotQuiz,
   TradeoffCard,
 } from "./learn";
+import { MobileCodePanel, MobileShell, type MobileTab } from "./mobile-shell";
 import { entityMatches, roleOf, type Lens } from "./roles";
 import { Stage, type StageMode } from "./stage";
 import { startTour, useProductTour } from "@/hooks/useProductTour";
@@ -46,7 +47,7 @@ const READING_LAYOUT: Layout = { "nav-panel": 0, "canvas-panel": 35, "overview-p
 function useWideLayout() {
   const [wide, setWide] = useState(false);
   useEffect(() => {
-    const query = window.matchMedia("(min-width: 1024px)");
+    const query = window.matchMedia("(min-width: 768px)");
     const apply = () => setWide(query.matches);
     apply();
     query.addEventListener("change", apply);
@@ -90,6 +91,8 @@ export function Explorer({
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [reading, setReading] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("learn");
+  const [patternsOpen, setPatternsOpen] = useState(false);
   const wide = useWideLayout();
   const groupRef = useGroupRef();
   const leftRef = usePanelRef();
@@ -168,6 +171,8 @@ export function Explorer({
   function pick(id: string, nextStep = 0, replace = false) {
     setPlaying(false);
     restarting.current = false;
+    setPatternsOpen(false);
+    setTreeOpen(false);
     onChange(id, nextStep, replace);
   }
 
@@ -287,23 +292,45 @@ export function Explorer({
     (item) => progress.seen.includes(item.id) && !progress.done.includes(item.id),
   ).length;
 
+  const sidebar = (
+    <Sidebar
+      open
+      onToggle={toggleLeft}
+      pattern={pattern}
+      step={safeStep}
+      filter={filter}
+      query={query}
+      done={progress.done}
+      seen={progress.seen}
+      searchRef={searchRef}
+      onFilter={setFilter}
+      onQuery={setQuery}
+      topOnly={topOnly}
+      onTopOnly={setTopOnly}
+      onPick={(id) => pick(id)}
+      onStep={(index) => pick(pattern.id, index, true)}
+      onResetProgress={progress.reset}
+      embedded
+    />
+  );
+
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-bg text-ink">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-bg text-ink">
       <Header
         pattern={pattern}
         learned={learned}
         started={started}
         done={progress.done}
         seen={progress.seen}
-        onPick={(id) => pick(id)}
         onFind={() => setTreeOpen(true)}
         navCollapsed={wide ? navCollapsed : !navOpen}
         overviewCollapsed={overviewCollapsed}
         onToggleNav={toggleLeft}
         onShowOverview={toggleRight}
+        mobile={!wide}
       />
-      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden p-3">
-        {wide ? (
+      {wide ? (
+        <div className="hidden min-h-0 w-full flex-1 overflow-hidden p-3 md:flex">
           <Group
             id="pattern-explorer-layout"
             className="h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden"
@@ -320,29 +347,19 @@ export function Explorer({
               minSize="12"
               maxSize="25"
               className="flex h-full min-h-0 flex-col overflow-hidden"
+              style={{ overflow: "hidden" }}
               onResize={(size) => setNavCollapsed(size.asPercentage < 1)}
             >
-              <Sidebar
-                open
-                onToggle={toggleLeft}
-                pattern={pattern}
-                step={safeStep}
-                filter={filter}
-                query={query}
-                done={progress.done}
-                seen={progress.seen}
-                searchRef={searchRef}
-                onFilter={setFilter}
-                onQuery={setQuery}
-                topOnly={topOnly}
-                onTopOnly={setTopOnly}
-                onPick={(id) => pick(id)}
-                onStep={(index) => pick(pattern.id, index, true)}
-                onResetProgress={progress.reset}
-              />
+              {sidebar}
             </Panel>
             <Separator id="nav-separator" className="pane-separator" />
-            <Panel id="canvas-panel" defaultSize="52" minSize="30" className="flex h-full min-h-0 flex-col overflow-hidden">
+            <Panel
+              id="canvas-panel"
+              defaultSize="52"
+              minSize="30"
+              className="flex h-full min-h-0 flex-col overflow-hidden"
+              style={{ overflow: "hidden" }}
+            >
               <Workspace
                 pattern={pattern}
                 safeStep={safeStep}
@@ -376,6 +393,7 @@ export function Explorer({
               minSize="20"
               maxSize="60"
               className="flex h-full min-h-0 flex-col overflow-hidden"
+              style={{ overflow: "hidden" }}
               onResize={(size) => setOverviewCollapsed(size.asPercentage < 1)}
             >
               <Overview
@@ -390,8 +408,34 @@ export function Explorer({
               />
             </Panel>
           </Group>
-        ) : (
-          <div className="grid h-full min-h-0 w-full flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto">
+        </div>
+      ) : (
+        <MobileShell
+          pattern={pattern}
+          scenarios={scenarios}
+          scenarioId={scenarioId}
+          onScenario={chooseScenario}
+          mobileTab={mobileTab}
+          onTab={setMobileTab}
+          patternsOpen={patternsOpen}
+          onPatternsOpen={setPatternsOpen}
+          patternsPanel={sidebar}
+        >
+          {mobileTab === "learn" ? (
+            <Overview
+              pattern={pattern}
+              hoveredEntityId={hoveredEntityId}
+              hoveredAlsoId={hoveredAlsoId}
+              onHover={hover}
+              onRelated={(id) => pick(id)}
+              reading={false}
+              onToggleReading={() => undefined}
+              onCollapse={() => undefined}
+              showCode={false}
+              panelControls={false}
+            />
+          ) : null}
+          {mobileTab === "canvas" ? (
             <Workspace
               pattern={pattern}
               safeStep={safeStep}
@@ -413,38 +457,19 @@ export function Explorer({
               togglePlay={togglePlay}
               resetPlay={resetPlay}
               pick={pick}
+              compact
             />
-            <Overview
+          ) : null}
+          {mobileTab === "code" ? (
+            <MobileCodePanel
               pattern={pattern}
               hoveredEntityId={hoveredEntityId}
               hoveredAlsoId={hoveredAlsoId}
               onHover={hover}
-              onRelated={(id) => pick(id)}
-              reading={false}
-              onToggleReading={() => undefined}
-              onCollapse={() => undefined}
             />
-            <Sidebar
-              open={navOpen}
-              onToggle={toggleLeft}
-              pattern={pattern}
-              step={safeStep}
-              filter={filter}
-              query={query}
-              done={progress.done}
-              seen={progress.seen}
-              searchRef={searchRef}
-              onFilter={setFilter}
-              onQuery={setQuery}
-              topOnly={topOnly}
-              onTopOnly={setTopOnly}
-              onPick={(id) => pick(id)}
-              onStep={(index) => pick(pattern.id, index, true)}
-              onResetProgress={progress.reset}
-            />
-          </div>
-        )}
-      </div>
+          ) : null}
+        </MobileShell>
+      )}
       <DecisionTreeDialog
         open={treeOpen}
         onClose={() => setTreeOpen(false)}
@@ -478,6 +503,7 @@ function Workspace({
   togglePlay,
   resetPlay,
   pick,
+  compact = false,
 }: {
   pattern: Pattern;
   safeStep: number;
@@ -499,10 +525,16 @@ function Workspace({
   togglePlay: () => void;
   resetPlay: () => void;
   pick: (id: string, nextStep?: number, replace?: boolean) => void;
+  compact?: boolean;
 }) {
   return (
-    <section className="order-1 flex min-h-0 min-w-0 flex-col gap-3 lg:h-full lg:overflow-hidden">
-      <div className="min-h-72 min-w-0 flex-1 lg:min-h-0 lg:overflow-hidden">
+    <section
+      className={clsx(
+        "order-1 flex min-h-0 min-w-0 flex-col gap-3",
+        compact ? "overflow-visible" : "h-full overflow-hidden",
+      )}
+    >
+      <div className={clsx("min-w-0", compact ? "shrink-0" : "min-h-0 flex-1 overflow-hidden")}>
         <Stage
           pattern={pattern}
           step={safeStep}
@@ -518,6 +550,8 @@ function Workspace({
           hoveredEntityId={hoveredEntityId}
           hoveredAlsoId={hoveredAlsoId}
           onHover={hover}
+          compact={compact}
+          showScenarios={!compact}
         />
       </div>
       <Trace
@@ -537,6 +571,7 @@ function Workspace({
         onPlay={togglePlay}
         onReset={resetPlay}
         onSeek={(index) => pick(pattern.id, index, true)}
+        compact={compact}
       />
     </section>
   );
@@ -548,56 +583,60 @@ function Header({
   started,
   done,
   seen,
-  onPick,
   onFind,
   navCollapsed,
   overviewCollapsed,
   onToggleNav,
   onShowOverview,
+  mobile = false,
 }: {
   pattern: Pattern;
   learned: number;
   started: number;
   done: string[];
   seen: string[];
-  onPick: (id: string) => void;
   onFind: () => void;
   navCollapsed: boolean;
   overviewCollapsed: boolean;
   onToggleNav: () => void;
   onShowOverview: () => void;
+  mobile?: boolean;
 }) {
   const group = CATEGORY_COPY[pattern.category];
   return (
     <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-3 py-2 sm:px-4">
       <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          onClick={onToggleNav}
-          aria-label={navCollapsed ? "Show design patterns" : "Hide design patterns"}
-          className="hidden size-11 place-items-center rounded-lg border border-line lg:grid"
-        >
-          {navCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-        </button>
+        {!mobile ? (
+          <button
+            type="button"
+            onClick={onToggleNav}
+            aria-label={navCollapsed ? "Show design patterns" : "Hide design patterns"}
+            className="hidden size-11 place-items-center rounded-lg border border-line md:grid"
+          >
+            {navCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
+        ) : null}
         <Logo />
         <div>
           <p className="text-sm font-extrabold tracking-wide">PATTERN EXPLORER</p>
           <p className="font-mono text-xs tracking-wide text-muted">LEARN LOW-LEVEL DESIGN</p>
         </div>
       </div>
-      <div className="hidden min-w-0 md:block">
-        <p className="font-mono text-xs tracking-wide text-muted">NOW LEARNING</p>
-        <p className="max-w-md truncate text-sm font-semibold">
-          {pattern.name}
-          <span className="font-normal text-muted"> · {pattern.tagline}</span>
-        </p>
-      </div>
+      {!mobile ? (
+        <div className="hidden min-w-0 md:block">
+          <p className="font-mono text-xs tracking-wide text-muted">NOW LEARNING</p>
+          <p className="max-w-md truncate text-sm font-semibold">
+            {pattern.name}
+            <span className="font-normal text-muted"> · {pattern.tagline}</span>
+          </p>
+        </div>
+      ) : null}
       <div className="hidden xl:block">
         <p className="font-mono text-xs tracking-wide text-muted">INTENT GROUP</p>
         <p className="text-sm font-semibold">{group.label}</p>
       </div>
-      <div className="ml-auto flex items-center gap-3">
-        {overviewCollapsed ? (
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        {!mobile && overviewCollapsed ? (
           <button
             type="button"
             onClick={onShowOverview}
@@ -607,53 +646,47 @@ function Header({
             Show reading
           </button>
         ) : null}
-        <button
-          type="button"
-          onClick={() => startTour()}
-          aria-label="Quick tour"
-          title="Quick tour"
-          className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-canvas px-3 text-sm font-semibold text-ink"
-        >
-          <HelpCircle className="size-4" />
-          <span className="hidden sm:inline">Tour</span>
-        </button>
+        {!mobile ? (
+          <button
+            type="button"
+            onClick={() => startTour()}
+            aria-label="Quick tour"
+            title="Quick tour"
+            className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line bg-canvas px-3 text-sm font-semibold text-ink"
+          >
+            <HelpCircle className="size-4" />
+            <span className="hidden sm:inline">Tour</span>
+          </button>
+        ) : null}
         <ThemeMenu />
-        <FindPatternButton onClick={onFind} />
+        {!mobile ? <FindPatternButton onClick={onFind} /> : null}
         <div className="text-right">
-          <p className="font-mono text-xs tracking-wide text-muted">LEARNING PROGRESS</p>
+          <p className="font-mono text-xs tracking-wide text-muted">
+            {mobile ? "PROGRESS" : "LEARNING PROGRESS"}
+          </p>
           <p className="text-sm font-semibold">
-            {learned} / {patterns.length} learned
-            {started > 0 ? <span className="font-normal text-muted"> · {started} in progress</span> : null}
+            {learned} / {patterns.length}
+            {!mobile && started > 0 ? (
+              <span className="font-normal text-muted"> · {started} in progress</span>
+            ) : null}
           </p>
         </div>
-        <div className="hidden h-5 w-36 overflow-hidden rounded-sm sm:flex" aria-hidden="true">
-          {patterns.map((item) => (
-            <span
-              key={item.id}
-              title={item.name}
-              className={clsx(
-                "h-full min-w-0 flex-1",
-                done.includes(item.id) ? "bg-primary" : seen.includes(item.id) ? "bg-amber" : "bg-line",
-                item.id === pattern.id && "outline outline-2 outline-offset-1 outline-ink",
-              )}
-            />
-          ))}
-        </div>
+        {!mobile ? (
+          <div className="hidden h-5 w-36 overflow-hidden rounded-sm sm:flex" aria-hidden="true">
+            {patterns.map((item) => (
+              <span
+                key={item.id}
+                title={item.name}
+                className={clsx(
+                  "h-full min-w-0 flex-1",
+                  done.includes(item.id) ? "bg-primary" : seen.includes(item.id) ? "bg-amber" : "bg-line",
+                  item.id === pattern.id && "outline outline-2 outline-offset-1 outline-ink",
+                )}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
-      <label className="basis-full md:hidden">
-        <span className="sr-only">Choose a pattern</span>
-        <select
-          className="h-11 w-full rounded-lg border border-line bg-canvas px-3 text-sm font-semibold"
-          value={pattern.id}
-          onChange={(event) => onPick(event.target.value)}
-        >
-          {patterns.map((item) => (
-            <option key={item.id} value={item.id}>
-              {CATEGORY_COPY[item.category].label}: {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
     </header>
   );
 }
@@ -686,6 +719,7 @@ function Sidebar({
   onPick,
   onStep,
   onResetProgress,
+  embedded = false,
 }: {
   open: boolean;
   onToggle: () => void;
@@ -703,6 +737,7 @@ function Sidebar({
   onPick: (id: string) => void;
   onStep: (index: number) => void;
   onResetProgress: () => void;
+  embedded?: boolean;
 }) {
   const listed = topOnly ? patterns.filter((item) => item.frequency === "high") : patterns;
   const tally = {
@@ -716,35 +751,45 @@ function Sidebar({
 
   if (!open) {
     return (
-      <aside id="sidebar-nav" className="order-3 rounded-xl border border-line bg-surface shadow-sm lg:order-1 lg:min-h-0">
+      <aside id="sidebar-nav" className="order-3 rounded-xl border border-line bg-surface shadow-sm md:order-1 md:min-h-0">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={false}
           aria-label="Show design patterns"
-          className="flex h-11 w-full items-center justify-center gap-2 text-sm font-bold tracking-wide lg:h-full lg:flex-col"
+          className="flex h-11 w-full items-center justify-center gap-2 text-sm font-bold tracking-wide md:h-full md:flex-col"
         >
           <PanelLeftOpen className="size-4" />
-          <span className="lg:hidden">Patterns</span>
+          <span className="md:hidden">Patterns</span>
         </button>
       </aside>
     );
   }
 
   return (
-    <aside id="sidebar-nav" className="order-3 flex min-w-0 flex-col rounded-xl border border-line bg-surface shadow-sm lg:order-1 lg:h-full lg:min-h-0 lg:overflow-hidden">
+    <aside
+      id="sidebar-nav"
+      className={clsx(
+        "flex min-w-0 flex-col bg-surface",
+        embedded
+          ? "h-full min-h-0 overflow-hidden"
+          : "order-3 rounded-xl border border-line shadow-sm md:order-1 md:h-full md:min-h-0 md:overflow-hidden",
+      )}
+    >
       <div className="shrink-0 border-b border-line px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xs font-bold tracking-widest">DESIGN PATTERNS</h1>
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded
-            aria-label="Hide design patterns"
-            className="grid size-11 place-items-center rounded-md border border-line text-ink hover:bg-canvas"
-          >
-            <PanelLeftClose className="size-4" />
-          </button>
+          {!embedded ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-expanded
+              aria-label="Hide design patterns"
+              className="grid size-11 place-items-center rounded-md border border-line text-ink hover:bg-canvas"
+            >
+              <PanelLeftClose className="size-4" />
+            </button>
+          ) : null}
         </div>
         <div className="mt-2 flex gap-1" role="group" aria-label="Pattern frequency">
           <button
@@ -799,7 +844,7 @@ function Sidebar({
           ))}
         </div>
       </div>
-      <div className="px-2 py-2 lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-2 py-2">
         {groups.map((group) => {
           if (filter !== "all" && filter !== group) return null;
           const items = patterns.filter((item) => {
@@ -939,6 +984,7 @@ function Trace({
   onPlay,
   onReset,
   onSeek,
+  compact = false,
 }: {
   pattern: Pattern;
   step: number;
@@ -953,6 +999,7 @@ function Trace({
   onPlay: () => void;
   onReset: () => void;
   onSeek: (index: number) => void;
+  compact?: boolean;
 }) {
   const activeRef = useRef<HTMLTableRowElement>(null);
   useEffect(() => {
@@ -960,7 +1007,13 @@ function Trace({
   }, [step, pattern.id]);
 
   return (
-    <section id="call-trace-section" className="flex h-64 shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm sm:h-72 lg:h-60">
+    <section
+      id="call-trace-section"
+      className={clsx(
+        "flex shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm",
+        compact ? "h-72" : "h-64 sm:h-72 md:h-60",
+      )}
+    >
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         <h2 className="text-xs font-bold tracking-widest">CALL TRACE</h2>
         <p className="hidden font-mono text-xs text-muted sm:block">Space plays · arrows step</p>
@@ -993,8 +1046,10 @@ function Trace({
           </IconButton>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
-        <table className="w-full border-collapse text-left text-xs">
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto overscroll-x-contain touch-pan-x">
+        <table
+          className={clsx("w-full border-collapse text-left text-xs", compact && "min-w-[34rem]")}
+        >
           <thead className="sticky top-0 bg-surface text-muted">
             <tr className="border-b border-line font-mono tracking-wide">
               <th className="px-2 py-2 font-medium">#</th>
@@ -1139,6 +1194,8 @@ function Overview({
   reading,
   onToggleReading,
   onCollapse,
+  showCode = true,
+  panelControls = true,
 }: {
   pattern: Pattern;
   hoveredEntityId: string | null;
@@ -1148,6 +1205,8 @@ function Overview({
   reading: boolean;
   onToggleReading: () => void;
   onCollapse: () => void;
+  showCode?: boolean;
+  panelControls?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const group = CATEGORY_COPY[pattern.category];
@@ -1163,7 +1222,12 @@ function Overview({
   }
 
   return (
-    <aside className="order-2 flex min-h-0 min-w-0 flex-col rounded-xl border border-line bg-surface shadow-sm lg:order-3 lg:h-full lg:overflow-hidden">
+    <aside
+      className={clsx(
+        "flex min-h-0 min-w-0 flex-col rounded-xl border border-line bg-surface shadow-sm",
+        panelControls ? "h-full overflow-hidden" : "overflow-visible",
+      )}
+    >
       <div className="shrink-0 border-b border-line px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xs font-bold tracking-widest">PATTERN OVERVIEW</h2>
@@ -1171,126 +1235,132 @@ function Overview({
             <span className="rounded-full bg-wash px-2 py-0.5 font-mono text-xs font-medium text-primary">
               {group.label}
             </span>
-            <button
-              type="button"
-              onClick={onToggleReading}
-              aria-pressed={reading}
-              aria-label={reading ? "Restore the canvas" : "Focus reading"}
-              title={reading ? "Restore the canvas" : "Focus reading"}
-              className="hidden size-11 place-items-center rounded-lg border border-line lg:grid"
-            >
-              {reading ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-            </button>
-            <button
-              type="button"
-              onClick={onCollapse}
-              aria-label="Collapse reading panel"
-              title="Collapse reading panel"
-              className="hidden size-11 place-items-center rounded-lg border border-line lg:grid"
-            >
-              <PanelRightClose className="size-4" />
-            </button>
+            {panelControls ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onToggleReading}
+                  aria-pressed={reading}
+                  aria-label={reading ? "Restore the canvas" : "Focus reading"}
+                  title={reading ? "Restore the canvas" : "Focus reading"}
+                  className="hidden size-11 place-items-center rounded-lg border border-line md:grid"
+                >
+                  {reading ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={onCollapse}
+                  aria-label="Collapse reading panel"
+                  title="Collapse reading panel"
+                  className="hidden size-11 place-items-center rounded-lg border border-line md:grid"
+                >
+                  <PanelRightClose className="size-4" />
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
         <p className="mt-2 text-2xl font-extrabold tracking-tight">{pattern.name}</p>
         <p className="text-sm text-muted">{pattern.tagline}</p>
         <p className="mt-2 text-sm leading-relaxed">{pattern.intent}</p>
       </div>
-      <div className="lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
-      <DiagnosticCard patternId={pattern.id} />
-      {pattern.complexityImpact ? <ComplexityCard impact={pattern.complexityImpact} /> : null}
-      <dl className="px-4">
-        <Fact k="Also known as" v={pattern.aka} />
-        <Fact k="Intent group" v={group.label} />
-        <Fact k="Participants" v={String(pattern.participants.length)} />
-        <Fact k="Source" v="Gang of Four, 1994" />
-      </dl>
-      <div className="space-y-4 px-4 py-4">
-        <CollisionCard patternId={pattern.id} onOpen={onRelated} />
-        <SpotQuiz patternId={pattern.id} />
-        <div className="rounded-lg border border-line bg-wash px-3 py-2.5">
-          <p className="font-mono text-xs font-medium tracking-wide text-primary">LLD PROMPT</p>
-          <p className="mt-1 text-sm leading-relaxed">{pattern.prompt}</p>
-        </div>
-        <Block title="The problem" body={pattern.problem} />
-        <Block title="The move" body={pattern.solution} />
-        <section>
-          <h3 className="font-mono text-xs tracking-wide text-muted">PARTICIPANTS</h3>
-          <ul className="mt-2 space-y-2">
-            {pattern.participants.map((participant) => (
-              <li key={participant.role}>
-                <p className="text-sm font-semibold">
-                  <span
-                    className={clsx(
-                      "mr-1.5 inline-block rounded-full px-1.5 py-0.5 align-middle font-mono text-xs font-semibold text-on-primary",
-                      participantTone(participant.role),
-                    )}
+      <div className={clsx(panelControls && "min-h-0 flex-1 overflow-x-hidden overflow-y-auto")}>
+        <DiagnosticCard patternId={pattern.id} />
+        {pattern.complexityImpact ? <ComplexityCard impact={pattern.complexityImpact} /> : null}
+        <dl className="px-4">
+          <Fact k="Also known as" v={pattern.aka} />
+          <Fact k="Intent group" v={group.label} />
+          <Fact k="Participants" v={String(pattern.participants.length)} />
+          <Fact k="Source" v="Gang of Four, 1994" />
+        </dl>
+        <div className="space-y-4 px-4 py-4">
+          <CollisionCard patternId={pattern.id} onOpen={onRelated} />
+          <SpotQuiz patternId={pattern.id} />
+          <div className="rounded-lg border border-line bg-wash px-3 py-2.5">
+            <p className="font-mono text-xs font-medium tracking-wide text-primary">LLD PROMPT</p>
+            <p className="mt-1 text-sm leading-relaxed">{pattern.prompt}</p>
+          </div>
+          <Block title="The problem" body={pattern.problem} />
+          <Block title="The move" body={pattern.solution} />
+          <section>
+            <h3 className="font-mono text-xs tracking-wide text-muted">PARTICIPANTS</h3>
+            <ul className="mt-2 space-y-2">
+              {pattern.participants.map((participant) => (
+                <li key={participant.role}>
+                  <p className="text-sm font-semibold">
+                    <span
+                      className={clsx(
+                        "mr-1.5 inline-block rounded-full px-1.5 py-0.5 align-middle font-mono text-xs font-semibold text-on-primary",
+                        participantTone(participant.role),
+                      )}
+                    >
+                      {participant.role}
+                    </span>
+                  </p>
+                  <p className="text-sm leading-relaxed text-muted">{participant.does}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section>
+            <h3 className="font-mono text-xs tracking-wide text-muted">DESIGN CHECK</h3>
+            <ol className="mt-2 space-y-1.5">
+              {pattern.checks.map((check, index) => (
+                <li key={check} className="flex gap-2 text-sm leading-relaxed">
+                  <span className="font-mono text-xs text-primary">{index + 1}</span>
+                  <span>{check}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section>
+            <h3 className="font-mono text-xs tracking-wide text-muted">USE WHEN</h3>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-relaxed text-muted">
+              {pattern.useWhen.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </section>
+          <TradeoffCard pattern={pattern} />
+          <section>
+            <h3 className="font-mono text-xs tracking-wide text-muted">RELATED</h3>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {pattern.related.map((id) => {
+                const related = findPattern(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onRelated(id)}
+                    className="rounded-full border border-line px-2.5 py-1 text-xs font-semibold hover:border-primary hover:text-primary"
                   >
-                    {participant.role}
-                  </span>
-                </p>
-                <p className="text-sm leading-relaxed text-muted">{participant.does}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section>
-          <h3 className="font-mono text-xs tracking-wide text-muted">DESIGN CHECK</h3>
-          <ol className="mt-2 space-y-1.5">
-            {pattern.checks.map((check, index) => (
-              <li key={check} className="flex gap-2 text-sm leading-relaxed">
-                <span className="font-mono text-xs text-primary">{index + 1}</span>
-                <span>{check}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
-        <section>
-          <h3 className="font-mono text-xs tracking-wide text-muted">USE WHEN</h3>
-          <ul className="mt-2 list-disc space-y-1 pl-4 text-sm leading-relaxed text-muted">
-            {pattern.useWhen.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-        <TradeoffCard pattern={pattern} />
-        <section>
-          <h3 className="font-mono text-xs tracking-wide text-muted">RELATED</h3>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {pattern.related.map((id) => {
-              const related = findPattern(id);
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onRelated(id)}
-                  className="rounded-full border border-line px-2.5 py-1 text-xs font-semibold hover:border-primary hover:text-primary"
-                >
-                  {related.name}
+                    {related.name}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <ReferenceCards pattern={pattern} />
+          {showCode ? (
+            <section>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-mono text-xs tracking-wide text-muted">TYPESCRIPT</h3>
+                <button type="button" onClick={() => void copySnippet()} className="text-xs font-semibold text-primary">
+                  {copied ? "Copied" : "Copy"}
                 </button>
-              );
-            })}
-          </div>
-        </section>
-        <ReferenceCards pattern={pattern} />
-        <section>
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-mono text-xs tracking-wide text-muted">TYPESCRIPT</h3>
-            <button type="button" onClick={() => void copySnippet()} className="text-xs font-semibold text-primary">
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-          <div className="max-h-96 overflow-x-auto overflow-y-auto">
-            <CodeView
-              snippet={pattern.snippet}
-              objects={pattern.objects}
-              hoveredEntityId={hoveredEntityId}
-              hoveredAlsoId={hoveredAlsoId}
-              onHover={onHover}
-            />
-          </div>
-        </section>
-      </div>
+              </div>
+              <div className="max-h-96 overflow-x-auto overflow-y-auto">
+                <CodeView
+                  snippet={pattern.snippet}
+                  objects={pattern.objects}
+                  hoveredEntityId={hoveredEntityId}
+                  hoveredAlsoId={hoveredAlsoId}
+                  onHover={onHover}
+                />
+              </div>
+            </section>
+          ) : null}
+        </div>
       </div>
     </aside>
   );

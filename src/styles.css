@@ -64,12 +64,15 @@
   html,
   body {
     height: 100%;
+    max-height: 100%;
     overflow: hidden;
+    overscroll-behavior: none;
   }
 
   body {
     margin: 0;
     padding: 0;
+    position: relative;
     background: var(--color-bg);
     color: var(--color-ink);
     font-family: var(--font-sans);
@@ -79,6 +82,14 @@
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--color-line) transparent;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 
