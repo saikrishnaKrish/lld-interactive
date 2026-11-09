@@ -1,0 +1,55 @@
+# dependencies
+node_modules
+
+# build output
+dist
+dist-ssr
+.output
+.nitro
+.vinxi
+.tanstack
+.vercel
+
+# caches
+.vite
+.cache
+*.tsbuildinfo
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# test and local QA output
+test-results
+playwright-report
+blob-report
+screenshots
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+
+# AI & Sandbox Artifacts
+.grok/
+.tanstack/
+.vercel/
+artifacts/
+AGENTS.md
+.qa-explorer.mjs
+.node_modules.lock
+
+# Environment & Credentials
+.env
+.env.local
+.env.*.local
+
+# Build & Dependencies
+node_modules/
+dist/
