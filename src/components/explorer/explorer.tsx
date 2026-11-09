@@ -10,6 +10,8 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Circle,
+  CircleDot,
   Pause,
   Play,
   RotateCcw,
@@ -39,7 +41,7 @@ import { startTour, useProductTour } from "@/hooks/useProductTour";
 import { ThemeMenu } from "./theme";
 import { useProgress } from "./use-progress";
 
-const SPEEDS = [1, 1.5, 2] as const;
+const SPEEDS = [0.5, 0.75, 1, 1.5, 2] as const;
 const LAYOUT_KEY = "pattern-explorer-layout";
 const DEFAULT_LAYOUT: Layout = { "nav-panel": 18, "canvas-panel": 52, "overview-panel": 30 };
 const READING_LAYOUT: Layout = { "nav-panel": 0, "canvas-panel": 35, "overview-panel": 65 };
@@ -87,6 +89,7 @@ export function Explorer({
   const [mode, setMode] = useState<StageMode>("objects");
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
+  const [showFlowBall, setShowFlowBall] = useState(true);
   const [navOpen, setNavOpen] = useState(true);
   const [navCollapsed, setNavCollapsed] = useState(false);
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
@@ -372,6 +375,8 @@ export function Explorer({
                 hasProblem={hasProblem}
                 chooseLens={chooseLens}
                 playing={playing}
+                showFlowBall={showFlowBall}
+                onToggleFlowBall={() => setShowFlowBall((value) => !value)}
                 scenarios={scenarios}
                 scenarioId={scenarioId}
                 chooseScenario={chooseScenario}
@@ -450,6 +455,8 @@ export function Explorer({
               hasProblem={hasProblem}
               chooseLens={chooseLens}
               playing={playing}
+              showFlowBall={showFlowBall}
+              onToggleFlowBall={() => setShowFlowBall((value) => !value)}
               scenarios={scenarios}
               scenarioId={scenarioId}
               chooseScenario={chooseScenario}
@@ -496,6 +503,8 @@ function Workspace({
   hasProblem,
   chooseLens,
   playing,
+  showFlowBall,
+  onToggleFlowBall,
   scenarios,
   scenarioId,
   chooseScenario,
@@ -518,6 +527,8 @@ function Workspace({
   hasProblem: boolean;
   chooseLens: (lens: Lens) => void;
   playing: boolean;
+  showFlowBall: boolean;
+  onToggleFlowBall: () => void;
   scenarios: ReturnType<typeof scenariosOf>;
   scenarioId: string;
   chooseScenario: (id: string) => void;
@@ -549,6 +560,7 @@ function Workspace({
           hasProblem={hasProblem}
           onLens={chooseLens}
           playing={playing}
+          showFlowBall={showFlowBall}
           scenarios={scenarios}
           scenarioId={scenarios.some((item) => item.id === scenarioId) ? scenarioId : scenarios[0].id}
           onScenario={chooseScenario}
@@ -564,6 +576,8 @@ function Workspace({
         step={safeStep}
         playing={playing}
         speed={speed}
+        showFlowBall={showFlowBall}
+        onToggleFlowBall={onToggleFlowBall}
         hoveredEntityId={hoveredEntityId}
         hoveredAlsoId={hoveredAlsoId}
         onHover={hover}
@@ -988,6 +1002,8 @@ function Trace({
   step,
   playing,
   speed,
+  showFlowBall,
+  onToggleFlowBall,
   hoveredEntityId,
   hoveredAlsoId,
   onHover,
@@ -1003,6 +1019,8 @@ function Trace({
   step: number;
   playing: boolean;
   speed: number;
+  showFlowBall: boolean;
+  onToggleFlowBall: () => void;
   hoveredEntityId: string | null;
   hoveredAlsoId: string | null;
   onHover: (id: string | null, also?: string | null) => void;
@@ -1031,6 +1049,20 @@ function Trace({
         <h2 className="text-xs font-bold tracking-widest">CALL TRACE</h2>
         <p className="hidden font-mono text-xs text-muted sm:block">Space plays · arrows step</p>
         <div className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onToggleFlowBall}
+            aria-pressed={showFlowBall}
+            aria-label={showFlowBall ? "Hide flow ball" : "Show flow ball"}
+            title={showFlowBall ? "Hide flow ball" : "Show flow ball"}
+            className={clsx(
+              "inline-flex h-9 items-center gap-1 rounded-md border px-2 text-xs font-semibold",
+              showFlowBall ? "border-primary bg-wash text-primary" : "border-line text-muted",
+            )}
+          >
+            {showFlowBall ? <CircleDot className="size-3.5" /> : <Circle className="size-3.5" />}
+            <span className="hidden sm:inline">Ball</span>
+          </button>
           <button
             type="button"
             onClick={onSpeed}

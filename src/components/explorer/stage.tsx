@@ -29,6 +29,7 @@ export function Stage({
   hasProblem,
   onLens,
   playing,
+  showFlowBall = true,
   scenarios,
   scenarioId,
   onScenario,
@@ -46,6 +47,7 @@ export function Stage({
   hasProblem: boolean;
   onLens: (lens: Lens) => void;
   playing: boolean;
+  showFlowBall?: boolean;
   scenarios: Scenario[];
   scenarioId: string;
   onScenario: (id: string) => void;
@@ -131,7 +133,15 @@ export function Stage({
       ) : null}
       <div className={clsx("min-h-0 flex-1 overflow-hidden", !compact && "min-h-48 md:min-h-0")}>
         {mode === "objects" ? (
-          <ObjectBoard pattern={pattern} step={step} lens={lens} playing={playing} compact={compact} {...hover} />
+          <ObjectBoard
+            pattern={pattern}
+            step={step}
+            lens={lens}
+            playing={playing}
+            showFlowBall={showFlowBall}
+            compact={compact}
+            {...hover}
+          />
         ) : (
           <SequenceBoard pattern={pattern} step={step} lens={lens} compact={compact} {...hover} />
         )}
@@ -216,11 +226,49 @@ function lit(object: DiagramObject, hover: HoverHandlers): boolean {
   return entityMatches(object, hover.hoveredEntityId) || entityMatches(object, hover.hoveredAlsoId);
 }
 
+function roleAlias(token: string): Role | undefined {
+  const key = token.toLowerCase();
+  if (key === "app" || key === "client" || key === "director" || key === "user" || key === "caller") {
+    return "client";
+  }
+  if (
+    key === "dialog" ||
+    key === "creator" ||
+    key === "factory" ||
+    key === "builder" ||
+    key === "abstract factory" ||
+    key === "creator role"
+  ) {
+    return "creator";
+  }
+  if (key === "product" || key === "concrete" || key === "result" || key === "clone") {
+    return "product";
+  }
+  return undefined;
+}
+
+function resolveObject(objects: DiagramObject[], token: string | undefined): DiagramObject | undefined {
+  if (!token) return undefined;
+  const key = token.toLowerCase();
+  const exact = objects.find((object) => object.id === token || object.id.toLowerCase() === key);
+  if (exact) return exact;
+  const byName = objects.find((object) => object.name.toLowerCase() === key);
+  if (byName) return byName;
+  const byEntity = objects.find((object) => entityMatches(object, token));
+  if (byEntity) return byEntity;
+  const byStereotype = objects.find((object) => object.stereotype.toLowerCase() === key);
+  if (byStereotype) return byStereotype;
+  const role = roleAlias(token);
+  if (role) return objects.find((object) => roleOf(object.stereotype) === role);
+  return undefined;
+}
+
 function ObjectBoard({
   pattern,
   step,
   lens,
   playing,
+  showFlowBall = true,
   compact = false,
   hoveredEntityId,
   hoveredAlsoId,
@@ -230,23 +278,12 @@ function ObjectBoard({
   step: number;
   lens: Lens;
   playing: boolean;
+  showFlowBall?: boolean;
   compact?: boolean;
 } & HoverHandlers) {
-  const viewportRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
-  const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
-
-  useLayoutEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const measure = () => setViewport({ w: el.clientWidth, h: el.clientHeight });
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   useLayoutEffect(() => {
     const el = boardRef.current;
@@ -259,29 +296,46 @@ function ObjectBoard({
   }, [compact]);
 
   const current = pattern.steps[step];
-  const visible = pattern.objects.filter((object) => isVisible(pattern, step, object.id));
-  const hot = new Set([current?.from, current?.to].filter(Boolean));
-  const useCards = compact || (viewport.w > 0 && viewport.w < 640);
+  const fromObj = resolveObject(pattern.objects, current?.from);
+  const toObj = resolveObject(pattern.objects, current?.to);
+  const visible = pattern.objects.filter(
+    (object) =>
+      isVisible(pattern, step, object.id) ||
+      object.id === fromObj?.id ||
+      object.id === toObj?.id,
+  );
+  const hot = new Set([fromObj?.id, toObj?.id].filter(Boolean));
 
   const problemBanner =
     lens === "problem" && current?.kind === "problem" ? (
-      <p className="role-alert pointer-events-none absolute inset-x-2 bottom-2 z-10 line-clamp-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium sm:inset-x-3 sm:bottom-3 sm:px-3 sm:py-2 sm:text-sm">
+      <p className="role-alert pointer-events-none absolute inset-x-2 bottom-2 z-30 line-clamp-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium sm:inset-x-3 sm:bottom-3 sm:px-3 sm:py-2 sm:text-sm">
         <span className="font-mono font-semibold">{current.call}</span>
         <span className="mx-1.5">·</span>
         {problemHint(current)}
       </p>
     ) : null;
 
-  if (useCards) {
+  // Mobile-only card grid — desktop/tablet keep the spatial canvas so flow lines can render.
+  if (compact) {
     return (
-      <div ref={viewportRef} className="blueprint relative h-full min-h-0 overflow-hidden">
-        <CompactObjects pattern={pattern} visible={visible} hot={hot} stepIndex={step} current={current} {...hover} />
+      <div ref={boardRef} className="blueprint relative h-full min-h-0 overflow-hidden">
+        <CompactObjects
+          pattern={pattern}
+          visible={visible}
+          hot={hot}
+          stepIndex={step}
+          current={current}
+          lens={lens}
+          playing={playing}
+          showFlowBall={showFlowBall}
+          {...hover}
+        />
       </div>
     );
   }
 
   return (
-    <div ref={viewportRef} className="relative h-full min-h-0 overflow-hidden">
+    <div className="relative h-full min-h-0 overflow-hidden">
       <div ref={boardRef} className="blueprint relative h-full w-full">
         {boardSize.w > 0 ? (
           <Arrows
@@ -289,18 +343,20 @@ function ObjectBoard({
             step={step}
             lens={lens}
             playing={playing}
+            showFlowBall={showFlowBall}
+            objects={pattern.objects}
             visible={visible}
             width={boardSize.w}
             height={boardSize.h}
             {...hover}
           />
         ) : null}
-        {boardSize.w > 0 && current?.from && current.to && current.kind !== "problem" ? (
+        {boardSize.w > 0 && fromObj && toObj && showStepEdge(lens, current!) ? (
           <CallLabel
             pattern={pattern}
             step={step}
             lens={lens}
-            visible={visible}
+            objects={pattern.objects}
             width={boardSize.w}
             height={boardSize.h}
           />
@@ -313,9 +369,9 @@ function ObjectBoard({
             step={step}
             lens={lens}
             hot={hot.has(object.id) || lit(object, hover)}
-            alert={lens === "problem" && (current?.from === object.id || current?.to === object.id)}
+            alert={lens === "problem" && (fromObj?.id === object.id || toObj?.id === object.id)}
             onHover={onHover}
-            className="absolute w-36"
+            className="absolute z-10 w-36"
             style={{
               left: `${object.x}%`,
               top: `${object.y}%`,
@@ -356,6 +412,7 @@ function ObjectCard({
   const lines = objectLines(pattern, step, object.id);
   return (
     <article
+      data-node-id={object.id}
       className={clsx(
         "rounded-lg border shadow-sm transition-shadow",
         compact ? "px-2 py-1.5" : "px-2.5 py-2",
@@ -408,6 +465,9 @@ function CompactObjects({
   hot,
   stepIndex,
   current,
+  lens,
+  playing = false,
+  showFlowBall = true,
   hoveredEntityId,
   hoveredAlsoId,
   onHover,
@@ -417,13 +477,87 @@ function CompactObjects({
   hot: Set<string | undefined>;
   stepIndex: number;
   current: PatternStep | undefined;
+  lens: Lens;
+  playing?: boolean;
+  showFlowBall?: boolean;
 } & HoverHandlers) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [flow, setFlow] = useState<{ path: string; w: number; h: number; color: string; dash?: string } | null>(
+    null,
+  );
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
-  const from = pattern.objects.find((object) => object.id === current?.from);
-  const to = pattern.objects.find((object) => object.id === current?.to);
+  const showEdge = Boolean(current && showStepEdge(lens, current));
+  const from = showEdge ? resolveObject(pattern.objects, current?.from) : undefined;
+  const to = showEdge ? resolveObject(pattern.objects, current?.to) : undefined;
+  const motion = showEdge && current ? edgeMotion(current) : null;
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || !from || !to || !motion) {
+      setFlow(null);
+      return;
+    }
+    const measure = () => {
+      const fromEl = grid.querySelector<HTMLElement>(`[data-node-id="${from.id}"]`);
+      const toEl = grid.querySelector<HTMLElement>(`[data-node-id="${to.id}"]`);
+      if (!fromEl || !toEl) {
+        setFlow(null);
+        return;
+      }
+      const root = grid.getBoundingClientRect();
+      const a = fromEl.getBoundingClientRect();
+      const b = toEl.getBoundingClientRect();
+      const start = { x: a.left - root.left + a.width / 2, y: a.top - root.top + a.height / 2 };
+      const end = { x: b.left - root.left + b.width / 2, y: b.top - root.top + b.height / 2 };
+      setFlow({
+        w: root.width,
+        h: root.height,
+        color: motion.color,
+        dash: motion.dash,
+        path: `M ${start.x} ${start.y} L ${end.x} ${end.y}`,
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [from?.id, to?.id, motion?.color, motion?.dash, visible, stepIndex, playing]);
+
   return (
     <div className="flex h-full flex-col gap-2 overflow-x-hidden overflow-y-auto p-2.5 sm:gap-3 sm:p-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div ref={gridRef} className="relative grid grid-cols-2 gap-2">
+        {flow ? (
+          <svg
+            className="pointer-events-none absolute inset-0 z-20 h-full w-full"
+            viewBox={`0 0 ${flow.w} ${flow.h}`}
+            aria-hidden="true"
+          >
+            <path
+              d={flow.path}
+              fill="none"
+              stroke={flow.color}
+              strokeWidth="2.4"
+              strokeDasharray={flow.dash}
+              markerEnd="url(#compact-flow-arrow)"
+            />
+            <defs>
+              <marker id="compact-flow-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8 Z" fill={flow.color} />
+              </marker>
+            </defs>
+            {showFlowBall ? (
+              <circle r={3.5} fill={flow.color} opacity="0.85" className="travel-dot">
+                <animateMotion
+                  key={`${from?.id}-${to?.id}-${stepIndex}`}
+                  dur={playing ? "3.2s" : "2.4s"}
+                  repeatCount={playing ? "indefinite" : "1"}
+                  fill="freeze"
+                  path={flow.path}
+                />
+              </circle>
+            ) : null}
+          </svg>
+        ) : null}
         {visible.map((object) => (
           <ObjectCard
             key={object.id}
@@ -432,10 +566,10 @@ function CompactObjects({
             step={stepIndex}
             lens={current?.kind === "problem" ? "problem" : "solution"}
             hot={hot.has(object.id) || lit(object, hover)}
-            alert={current?.kind === "problem" && (current.from === object.id || current.to === object.id)}
+            alert={current?.kind === "problem" && (from?.id === object.id || to?.id === object.id)}
             onHover={onHover}
             compact
-            className="min-w-0"
+            className="relative z-10 min-w-0"
           />
         ))}
       </div>
@@ -462,6 +596,8 @@ function Arrows({
   step,
   lens,
   playing,
+  showFlowBall = true,
+  objects,
   visible,
   width,
   height,
@@ -472,22 +608,28 @@ function Arrows({
   step: number;
   lens: Lens;
   playing: boolean;
+  showFlowBall?: boolean;
+  objects: DiagramObject[];
   visible: DiagramObject[];
   width: number;
   height: number;
 } & Omit<HoverHandlers, "onHover">) {
-  const byId = new Map(visible.map((object) => [object.id, object]));
+  const visibleIds = new Set(visible.map((object) => object.id));
   const current = pattern.steps[step];
-  const markerId = `arrow-${pattern.id}-${lens}`;
+  const markerId = `arrow-${pattern.id}-${lens}-${step}`;
   const motion = current ? edgeMotion(current) : null;
+  const from = resolveObject(objects, current?.from);
+  const to = resolveObject(objects, current?.to);
   const call =
-    current?.from && current.to && showStepEdge(lens, current)
-      ? linkGeometry(byId.get(current.from), byId.get(current.to), width, height)
-      : null;
+    from && to && current && showStepEdge(lens, current) ? linkGeometry(from, to, width, height) : null;
   const hover = { hoveredEntityId, hoveredAlsoId, onHover: () => undefined };
 
   return (
-    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${height}`}>
+    <svg
+      className="pointer-events-none absolute inset-0 z-20 h-full w-full"
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden="true"
+    >
       <defs>
         <Marker id={markerId} color="var(--color-role-creator)" />
         <Marker id={`${markerId}-muted`} color="var(--color-muted)" />
@@ -496,14 +638,16 @@ function Arrows({
       </defs>
       {lens === "solution"
         ? pattern.links.map((link) => {
-            if (current && showStepEdge(lens, current) && link.from === current.from && link.to === current.to) {
+            const linkFrom = resolveObject(objects, link.from);
+            const linkTo = resolveObject(objects, link.to);
+            if (!linkFrom || !linkTo) return null;
+            if (!visibleIds.has(linkFrom.id) || !visibleIds.has(linkTo.id)) return null;
+            if (from && to && showStepEdge(lens, current!) && linkFrom.id === from.id && linkTo.id === to.id) {
               return null;
             }
-            const geometry = linkGeometry(byId.get(link.from), byId.get(link.to), width, height);
+            const geometry = linkGeometry(linkFrom, linkTo, width, height);
             if (!geometry) return null;
-            const from = byId.get(link.from);
-            const to = byId.get(link.to);
-            const emphasized = (from && lit(from, hover)) || (to && lit(to, hover));
+            const emphasized = lit(linkFrom, hover) || lit(linkTo, hover);
             const stroke = structureStroke(link.label, link.dashed);
             return (
               <path
@@ -520,7 +664,7 @@ function Arrows({
           })
         : null}
       {call && motion ? (
-        <g key={`${pattern.id}-${step}-${lens}`}>
+        <g key={`${pattern.id}-${step}-${lens}-${from?.id}-${to?.id}`}>
           <path
             d={call.path}
             fill="none"
@@ -529,17 +673,17 @@ function Arrows({
             strokeDasharray={motion.dash}
             markerEnd={`url(#${markerId}-active)`}
           />
-          <circle r={motion.particle === "spawn" ? 4 : 5} fill={motion.color} className="travel-dot">
-            <animateMotion
-              dur={playing ? "1.1s" : "0.75s"}
-              repeatCount={playing ? "indefinite" : "1"}
-              fill="freeze"
-              path={call.path}
-            />
-            {motion.particle === "spawn" ? (
-              <animate attributeName="r" values="2;3;8;4" keyTimes="0;0.62;0.84;1" dur="0.75s" fill="freeze" />
-            ) : null}
-          </circle>
+          {showFlowBall ? (
+            <circle r={3.5} fill={motion.color} opacity="0.85" className="travel-dot">
+              <animateMotion
+                key={`${pattern.id}-${step}-${playing ? "play" : "step"}`}
+                dur={playing ? "3.2s" : "2.4s"}
+                repeatCount={playing ? "indefinite" : "1"}
+                fill="freeze"
+                path={call.path}
+              />
+            </circle>
+          ) : null}
         </g>
       ) : null}
     </svg>
@@ -580,26 +724,25 @@ function CallLabel({
   pattern,
   step,
   lens,
-  visible,
+  objects,
   width,
   height,
 }: {
   pattern: Pattern;
   step: number;
   lens: Lens;
-  visible: DiagramObject[];
+  objects: DiagramObject[];
   width: number;
   height: number;
 }) {
   const current = pattern.steps[step];
-  const byId = new Map(visible.map((object) => [object.id, object]));
   if (!current?.from || !current.to || !showStepEdge(lens, current)) return null;
-  const call = linkGeometry(byId.get(current.from), byId.get(current.to), width, height);
+  const call = linkGeometry(resolveObject(objects, current.from), resolveObject(objects, current.to), width, height);
   if (!call) return null;
   const problem = current.kind === "problem";
   return (
     <div
-      className="pointer-events-none absolute z-10 -translate-x-1/2"
+      className="pointer-events-none absolute z-30 -translate-x-1/2"
       style={{ left: call.label.x, top: problem ? call.label.y - 36 : call.label.y }}
     >
       <p
@@ -673,7 +816,15 @@ function SequenceBoard({
   compact?: boolean;
 } & HoverHandlers) {
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
-  const visible = pattern.objects.filter((object) => isVisible(pattern, step, object.id));
+  const current = pattern.steps[step];
+  const fromObj = resolveObject(pattern.objects, current?.from);
+  const toObj = resolveObject(pattern.objects, current?.to);
+  const visible = pattern.objects.filter(
+    (object) =>
+      isVisible(pattern, step, object.id) ||
+      object.id === fromObj?.id ||
+      object.id === toObj?.id,
+  );
   const shown = pattern.steps
     .map((item, index) => ({ item, index }))
     .filter(({ item, index }) => index === step || (lens === "problem" ? item.kind === "problem" : item.kind !== "problem"));
@@ -683,12 +834,13 @@ function SequenceBoard({
     <>
       <div className="grid shrink-0 border-b border-line bg-surface" style={{ gridTemplateColumns: columns }}>
         {visible.map((object) => {
-          const hot = pattern.steps[step]?.from === object.id || pattern.steps[step]?.to === object.id || lit(object, hover);
+          const hot = fromObj?.id === object.id || toObj?.id === object.id || lit(object, hover);
           const role = roleOf(object.stereotype);
           return (
             <button
               key={object.id}
               type="button"
+              data-node-id={object.id}
               onMouseEnter={() => onHover(object.id)}
               onMouseLeave={() => onHover(null)}
               className={clsx(
@@ -739,7 +891,7 @@ function SequenceBoard({
 
 function traceLinked(item: PatternStep, pattern: Pattern, hover: HoverHandlers): boolean {
   return [item.from, item.to].some((id) => {
-    const object = pattern.objects.find((entry) => entry.id === id);
+    const object = resolveObject(pattern.objects, id);
     return object ? lit(object, hover) : false;
   });
 }
@@ -756,8 +908,10 @@ function SequenceRow({
   linked: boolean;
 }) {
   const n = objects.length || 1;
-  const from = objects.findIndex((object) => object.id === item.from);
-  const to = objects.findIndex((object) => object.id === item.to);
+  const fromObj = resolveObject(objects, item.from);
+  const toObj = resolveObject(objects, item.to);
+  const from = fromObj ? objects.findIndex((object) => object.id === fromObj.id) : -1;
+  const to = toObj ? objects.findIndex((object) => object.id === toObj.id) : -1;
   const valid = from >= 0 && to >= 0;
   const tone = kindTone(item.kind);
   const bar =
