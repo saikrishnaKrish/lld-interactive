@@ -288,7 +288,7 @@ export function Explorer({
   ).length;
 
   return (
-    <div className="flex h-dvh flex-col bg-bg text-ink">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-bg text-ink">
       <Header
         pattern={pattern}
         learned={learned}
@@ -302,11 +302,11 @@ export function Explorer({
         onToggleNav={toggleLeft}
         onShowOverview={toggleRight}
       />
-      <div className="min-h-0 flex-1 p-3">
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden p-3">
         {wide ? (
           <Group
             id="pattern-explorer-layout"
-            className="h-full"
+            className="h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden"
             orientation="horizontal"
             groupRef={groupRef}
             onLayoutChanged={onLayoutChanged}
@@ -391,7 +391,7 @@ export function Explorer({
             </Panel>
           </Group>
         ) : (
-          <div className="grid h-full grid-cols-1 gap-3 overflow-auto">
+          <div className="grid h-full min-h-0 w-full flex-1 grid-cols-1 gap-3 overflow-x-hidden overflow-y-auto">
             <Workspace
               pattern={pattern}
               safeStep={safeStep}
@@ -501,8 +501,8 @@ function Workspace({
   pick: (id: string, nextStep?: number, replace?: boolean) => void;
 }) {
   return (
-    <section className="order-1 flex h-full min-h-0 min-w-0 flex-col gap-3">
-      <div className="min-h-72 min-w-0 flex-1 lg:min-h-0">
+    <section className="order-1 flex min-h-0 min-w-0 flex-col gap-3 lg:h-full lg:overflow-hidden">
+      <div className="min-h-72 min-w-0 flex-1 lg:min-h-0 lg:overflow-hidden">
         <Stage
           pattern={pattern}
           step={safeStep}
@@ -569,7 +569,7 @@ function Header({
 }) {
   const group = CATEGORY_COPY[pattern.category];
   return (
-    <header className="z-20 flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-3 py-2 sm:px-4">
+    <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-surface px-3 py-2 sm:px-4">
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -732,8 +732,8 @@ function Sidebar({
   }
 
   return (
-    <aside id="sidebar-nav" className="order-3 flex h-full min-w-0 flex-col rounded-xl border border-line bg-surface shadow-sm lg:order-1 lg:min-h-0 lg:overflow-hidden">
-      <div className="border-b border-line px-3 py-3">
+    <aside id="sidebar-nav" className="order-3 flex min-w-0 flex-col rounded-xl border border-line bg-surface shadow-sm lg:order-1 lg:h-full lg:min-h-0 lg:overflow-hidden">
+      <div className="shrink-0 border-b border-line px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xs font-bold tracking-widest">DESIGN PATTERNS</h1>
           <button
@@ -799,7 +799,7 @@ function Sidebar({
           ))}
         </div>
       </div>
-      <div className="px-2 py-2 lg:min-h-0 lg:flex-1 lg:overflow-auto">
+      <div className="px-2 py-2 lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
         {groups.map((group) => {
           if (filter !== "all" && filter !== group) return null;
           const items = patterns.filter((item) => {
@@ -901,7 +901,7 @@ function Sidebar({
           <p className="px-2 py-6 text-center text-sm text-muted">No pattern matches that search.</p>
         ) : null}
       </div>
-      <div className="flex items-center justify-between gap-2 border-t border-line px-3 py-2">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line px-3 py-2">
         <p className="text-xs leading-snug text-muted">23 Gang of Four patterns, as LLD drills.</p>
         <button type="button" onClick={onResetProgress} className="shrink-0 text-xs font-semibold text-primary">
           Reset
@@ -961,7 +961,7 @@ function Trace({
 
   return (
     <section id="call-trace-section" className="flex h-64 shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm sm:h-72 lg:h-60">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
         <h2 className="text-xs font-bold tracking-widest">CALL TRACE</h2>
         <p className="hidden font-mono text-xs text-muted sm:block">Space plays · arrows step</p>
         <div className="ml-auto flex items-center gap-1">
@@ -993,7 +993,7 @@ function Trace({
           </IconButton>
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <table className="w-full border-collapse text-left text-xs">
           <thead className="sticky top-0 bg-surface text-muted">
             <tr className="border-b border-line font-mono tracking-wide">
@@ -1163,8 +1163,8 @@ function Overview({
   }
 
   return (
-    <aside className="order-2 flex h-full min-h-0 min-w-0 flex-col overflow-y-auto rounded-xl border border-line bg-surface shadow-sm lg:order-3">
-      <div className="border-b border-line px-4 py-3">
+    <aside className="order-2 flex min-h-0 min-w-0 flex-col rounded-xl border border-line bg-surface shadow-sm lg:order-3 lg:h-full lg:overflow-hidden">
+      <div className="shrink-0 border-b border-line px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-xs font-bold tracking-widest">PATTERN OVERVIEW</h2>
           <div className="flex items-center gap-1">
@@ -1196,6 +1196,7 @@ function Overview({
         <p className="text-sm text-muted">{pattern.tagline}</p>
         <p className="mt-2 text-sm leading-relaxed">{pattern.intent}</p>
       </div>
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto">
       <DiagnosticCard patternId={pattern.id} />
       {pattern.complexityImpact ? <ComplexityCard impact={pattern.complexityImpact} /> : null}
       <dl className="px-4">
@@ -1279,7 +1280,7 @@ function Overview({
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
-          <div className="max-h-96 overflow-auto">
+          <div className="max-h-96 overflow-x-auto overflow-y-auto">
             <CodeView
               snippet={pattern.snippet}
               objects={pattern.objects}
@@ -1289,6 +1290,7 @@ function Overview({
             />
           </div>
         </section>
+      </div>
       </div>
     </aside>
   );

@@ -1,4 +1,5 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
@@ -22,7 +23,7 @@ export const Route = createRootRoute({
     ],
   }),
   component: () => (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="h-full overflow-hidden" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -32,11 +33,12 @@ export const Route = createRootRoute({
         />
         <HeadContent />
       </head>
-      <body>
+      <body className="m-0 h-full overflow-hidden p-0">
         <PreviewHostBridge />
         <AuthProvider>
           <Outlet />
         </AuthProvider>
+        <Analytics />
         <Scripts />
       </body>
     </html>

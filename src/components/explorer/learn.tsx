@@ -320,7 +320,7 @@ export function DecisionTreeDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="max-h-[85dvh] w-full max-w-lg overflow-auto rounded-xl border border-line bg-surface shadow-sm"
+        className="max-h-[85dvh] w-full max-w-lg overflow-x-hidden overflow-y-auto rounded-xl border border-line bg-surface shadow-sm"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">

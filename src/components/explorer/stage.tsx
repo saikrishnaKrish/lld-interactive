@@ -54,8 +54,8 @@ export function Stage({
   const hover = { hoveredEntityId, hoveredAlsoId, onHover };
 
   return (
-    <section className="flex h-full min-h-96 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
+    <section className="flex h-full min-h-72 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm lg:min-h-0">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg bg-canvas p-1" role="tablist" aria-label="Diagram mode">
             <ModeButton active={mode === "objects"} onClick={() => onMode("objects")}>
@@ -84,7 +84,7 @@ export function Stage({
         <p className="font-mono text-xs text-muted">{pattern.name}</p>
       </div>
       {scenarios.length > 1 ? (
-        <div id="scenario-switcher" className="flex flex-wrap gap-1 border-b border-line px-3 py-2" role="tablist" aria-label="Scenario">
+        <div id="scenario-switcher" className="flex shrink-0 flex-wrap gap-1 border-b border-line px-3 py-2" role="tablist" aria-label="Scenario">
           {scenarios.map((scenario) => (
             <button
               key={scenario.id}
@@ -105,13 +105,13 @@ export function Stage({
           ))}
         </div>
       ) : null}
-      <div className="flex flex-wrap gap-1.5 border-b border-line px-3 py-1.5">
+      <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-line px-3 py-1.5">
         <Legend swatch="bg-role-client" label="Client" />
         <Legend swatch="bg-role-creator" label="Creator" />
         <Legend swatch="bg-role-product" label="Product" />
         <Legend swatch="bg-role-alert" label="Tight coupling" />
       </div>
-      <div className="min-h-72 flex-1">
+      <div className="min-h-48 flex-1 overflow-hidden lg:min-h-0">
         {mode === "objects" ? (
           <ObjectBoard pattern={pattern} step={step} lens={lens} playing={playing} {...hover} />
         ) : (
@@ -119,7 +119,7 @@ export function Stage({
         )}
       </div>
       {current ? (
-        <div className="border-t border-line bg-surface px-3 py-2.5">
+        <div className="shrink-0 border-t border-line bg-surface px-3 py-2.5">
           <p
             className={clsx(
               "font-mono text-xs font-medium tracking-wide",
@@ -232,7 +232,7 @@ function ObjectBoard({
   const narrow = size.w > 0 && size.w < 640;
 
   return (
-    <div ref={ref} className="blueprint relative h-full min-h-72 overflow-hidden">
+    <div ref={ref} className="blueprint relative h-full min-h-48 overflow-hidden lg:min-h-0">
       {narrow ? (
         <CompactObjects pattern={pattern} visible={visible} hot={hot} stepIndex={step} current={current} {...hover} />
       ) : (
@@ -379,7 +379,7 @@ function CompactObjects({
   const from = pattern.objects.find((object) => object.id === current?.from);
   const to = pattern.objects.find((object) => object.id === current?.to);
   return (
-    <div className="flex h-full flex-col gap-3 overflow-auto p-3">
+    <div className="flex h-full flex-col gap-3 overflow-x-hidden overflow-y-auto p-3">
       <div className="flex flex-wrap gap-2">
         {visible.map((object) => (
           <ObjectCard
@@ -634,7 +634,7 @@ function SequenceBoard({
   const columns = `repeat(${Math.max(visible.length, 1)}, minmax(0, 1fr))`;
 
   return (
-    <div className="flex h-full min-h-72 flex-col bg-canvas">
+    <div className="flex h-full min-h-48 flex-col overflow-hidden bg-canvas lg:min-h-0">
       <div className="grid border-b border-line bg-surface" style={{ gridTemplateColumns: columns }}>
         {visible.map((object) => {
           const hot = pattern.steps[step]?.from === object.id || pattern.steps[step]?.to === object.id || lit(object, hover);
@@ -665,7 +665,7 @@ function SequenceBoard({
           );
         })}
       </div>
-      <div className="relative min-h-0 flex-1 overflow-auto">
+      <div className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
         <div className="pointer-events-none absolute inset-0 grid" style={{ gridTemplateColumns: columns }}>
           {visible.map((object) => (
             <div key={object.id} className="relative">
